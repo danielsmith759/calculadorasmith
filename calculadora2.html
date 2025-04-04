@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Impresión</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(to right, #1E1E1E, #333333);
+            color: white;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .contenedor {
+            max-width: 400px;
+            margin: auto;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            box-shadow: 2px 2px 15px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .logo {
+            width: 150px;
+            margin-bottom: 10px;
+        }
+
+        h2 {
+            color: #FFD700;
+        }
+
+        select, input, button {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: none;
+            font-size: 16px;
+        }
+
+        select, input {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        select option {
+            color: black;
+            background: white;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        button {
+            background: #FFD700;
+            color: black;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background: #FFC107;
+            transform: scale(1.05);
+        }
+
+        h3 {
+            color: #4CAF50;
+            font-size: 20px;
+            font-weight: bold;
+        }
+    </style>
+    <script>
+        function calcularPrecio() {
+            var material = document.getElementById("material").value;
+            var impresion = document.getElementById("impresion").value;
+            var ancho = parseFloat(document.getElementById("ancho").value);
+            var alto = parseFloat(document.getElementById("alto").value);
+
+            if (isNaN(ancho) || isNaN(alto) || ancho <= 0 || alto <= 0) {
+                document.getElementById("resultado").innerText = "Por favor, ingrese medidas válidas.";
+                return;
+            }
+
+            var precios = {
+                "Vinilo": { "uv": 45000, "solvente": 35000, "uv_blanco_brillo": 68000, "uv_blanco_brillo_extra": 92000 },
+                "Banner": { "uv": 45000, "solvente": 35000 },
+                "Fotografico": { "solvente": 70000 },
+                "Lienzo": { "uv": 98000, "solvente": 90000 },
+                "Metalizado": { "uv": 70000, "solvente": 60000, "uv_blanco_brillo": 85000, "uv_blanco_brillo_extra": 108000 },
+                "Solo_Impresion": { "uv": 34000, "solvente": 30000, "uv_blanco_brillo": 57000, "uv_blanco_brillo_extra": 81000 }
+            };
+
+            if (material in precios && impresion in precios[material]) {
+                var precioMetroCuadrado = precios[material][impresion];
+                var area = ancho * alto;
+                var precioTotal = precioMetroCuadrado * area;
+
+                document.getElementById("resultado").innerText = "Precio: $" + precioTotal.toLocaleString();
+            } else {
+                document.getElementById("resultado").innerText = "Seleccione opciones válidas.";
+            }
+        }
+    </script>
+</head>
+<body>
+    <div class="contenedor">
+        <img src="logo.png" alt="Logo de Smith Impresores" class="logo">
+        <h2>Calculadora de Impresión</h2>
+
+        <label for="material">Material:</label>
+        <select id="material" aria-label="Seleccionar material">
+            <option value="Vinilo">Vinilo</option>
+            <option value="Banner">Banner</option>
+            <option value="Fotografico">Fotografico</option>
+            <option value="Lienzo">Lienzo</option>
+            <option value="Metalizado">Metalizado</option>
+            <option value="Solo_Impresion">Solo Impresión</option>
+        </select>
+
+        <label for="impresion">Tipo de Impresión:</label>
+        <select id="impresion" aria-label="Seleccionar tipo de impresión">
+            <option value="uv">UV</option>
+            <option value="solvente">Solvente</option>
+            <option value="uv_blanco_brillo">UV + Blanco o Brillo</option>
+            <option value="uv_blanco_brillo_extra">UV + Blanco + Brillo</option>
+        </select>
+
+        <label for="ancho">Ancho (metros):</label>
+        <input type="number" id="ancho" step="0.01" placeholder="Ejemplo: 1.5" aria-label="Ingrese el ancho">
+
+        <label for="alto">Alto (metros):</label>
+        <input type="number" id="alto" step="0.01" placeholder="Ejemplo: 2.0" aria-label="Ingrese el alto">
+
+        <button onclick="calcularPrecio()">Calcular</button>
+
+        <h3 id="resultado" aria-live="polite"></h3>
+    </div>
+</body>
+</html>
