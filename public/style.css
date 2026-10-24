@@ -1,0 +1,29 @@
+* { box-sizing: border-box; }
+body { font-family: Arial, sans-serif; background: linear-gradient(to right, #1E1E1E, #333); color: #fff; margin: 0; padding: 20px; }
+.contenedor { max-width: 900px; margin: auto; padding: 20px; background: rgba(255,255,255,.1); border-radius: 10px; box-shadow: 2px 2px 15px rgba(0,0,0,.3); }
+header { text-align: center; }
+.logo { width: 130px; }
+h1, h2 { color: #FFD700; margin: 8px 0; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+label { display: block; margin-top: 10px; font-size: 14px; }
+input, textarea, button, select { width: 100%; padding: 11px; margin: 6px 0; border-radius: 5px; border: none; font-size: 16px; }
+input, textarea, select { background: rgba(255,255,255,.2); color: #fff; }
+input::placeholder, textarea::placeholder { color: #bbb; }
+button { background: #FFD700; color: #000; font-weight: bold; cursor: pointer; transition: .2s; }
+button:hover:not(:disabled) { background: #FFC107; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button.sec { background: rgba(255,255,255,.2); color: #fff; }
+.row { display: flex; gap: 10px; }
+.row > * { flex: 1; }
+.preview { min-height: 260px; display: flex; align-items: center; justify-content: center; border-radius: 8px; padding: 12px;
+  background: repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 20px 20px; }
+.preview canvas { max-width: 100%; max-height: 360px; }
+.price { color: #4CAF50; font-size: 28px; font-weight: bold; margin: 6px 0; }
+.muted { color: #bbb; font-size: 13px; }
+.msg { margin: 8px 0; font-weight: bold; }
+.err { color: #ff6b6b; } .ok { color: #4CAF50; }
+.hidden { display: none; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 8px; border-bottom: 1px solid rgba(255,255,255,.2); text-align: left; }
+td a, td button { width: auto; display: inline-block; padding: 6px 10px; font-size: 13px; text-decoration: none; background: #FFD700; color: #000; border-radius: 5px; font-weight: bold; }

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cotizador DTF UV - Smith Impresores</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="contenedor">
+  <header>
+    <img src="logo.png" alt="Smith Impresores" class="logo">
+    <h1>Cotizador DTF UV</h1>
+    <p class="muted">Sube tu diseño, quítale el fondo, ajusta la medida y conoce el precio al instante.</p>
+  </header>
+
+  <label for="file">1. Sube tu imagen (PNG, JPG, WEBP)</label>
+  <input type="file" id="file" accept="image/*">
+
+  <div id="editor" class="hidden">
+    <div class="grid">
+      <div>
+        <div class="preview"><canvas id="preview"></canvas></div>
+        <p class="muted">El cuadriculado indica las zonas transparentes (no se imprimen ni se cobran).</p>
+        <div class="row">
+          <button id="btnAI" type="button">Quitar fondo (IA)</button>
+          <button id="btnColor" type="button" class="sec">Quitar color de fondo</button>
+        </div>
+        <label for="tol">Tolerancia del color de fondo: <span id="tolVal">30</span></label>
+        <input type="range" id="tol" min="5" max="120" value="30">
+        <button id="btnReset" type="button" class="sec">Restaurar original</button>
+        <div id="status" class="msg muted"></div>
+      </div>
+
+      <div>
+        <label>2. Medida (cm) — se mantiene la proporción</label>
+        <div class="row">
+          <input type="number" id="w" min="1" step="0.1" placeholder="Ancho cm" aria-label="Ancho en cm">
+          <input type="number" id="h" min="1" step="0.1" placeholder="Alto cm" aria-label="Alto en cm">
+        </div>
+        <label for="qty">Cantidad</label>
+        <input type="number" id="qty" min="1" max="1000" value="1">
+
+        <div class="muted" id="areaInfo"></div>
+        <div class="price" id="price">$0</div>
+        <div class="msg err" id="sizeWarn"></div>
+
+        <label>3. Tus datos</label>
+        <input id="name" placeholder="Nombre" autocomplete="name">
+        <input id="phone" placeholder="WhatsApp / teléfono" autocomplete="tel" inputmode="tel">
+        <textarea id="note" rows="2" placeholder="Observaciones (opcional)"></textarea>
+        <button id="send" type="button">Enviar pedido</button>
+        <div id="result" class="msg"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
