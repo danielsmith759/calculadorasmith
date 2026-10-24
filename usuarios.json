@@ -1,0 +1,10 @@
+{
+  "danielsmith": {
+    "salt": "4c93b45a8e874deb8635066ead9f06fa",
+    "hash": "cb420a4a0526e8e34d8344686415c8b1dfde9d183a29465f860094339c4ea4ff"
+  },
+  "samysmith": {
+    "salt": "53e3dcc899dd0f57977bce378e6e13c4",
+    "hash": "95fa54a7b2da5858b7de8febba4dcdb90c0894f395d547304ef247163319e108"
+  }
+}

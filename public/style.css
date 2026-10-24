@@ -47,3 +47,4 @@ td a, td button { width: auto; display: inline-block; padding: 6px 10px; font-si
 .terms label { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; margin: 8px 0; }
 .terms input { width: auto; margin: 3px 0 0; }
 .warn { color: #FFD700; font-size: 13px; }
+.terms ol { padding-left: 20px; font-size: 13px; margin: 4px 0 10px; } .terms li { margin: 6px 0; }

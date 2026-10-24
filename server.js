@@ -12,11 +12,13 @@ const FILES_DIR = path.join(DATA_DIR, 'files');
 const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
 fs.mkdirSync(FILES_DIR, { recursive: true });
 
-let adminPassword = process.env.ADMIN_PASSWORD;
-if (!adminPassword) {
-  adminPassword = crypto.randomBytes(6).toString('hex');
-  console.log(`ADMIN_PASSWORD no definido. Clave temporal de administrador: ${adminPassword}`);
-}
+const USERS_FILE = path.join(__dirname, 'usuarios.json');
+const loadUsers = () => { try { return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')); } catch { return {}; } };
+const checkLogin = (user, pass) => {
+  const u = loadUsers()[user];
+  if (!u) { crypto.scryptSync(pass, 'x', 32); return false; } // tiempo similar si el usuario no existe
+  return safeEqual(crypto.scryptSync(pass, u.salt, 32).toString('hex'), u.hash);
+};
 const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const SESSION_MS = 12 * 60 * 60 * 1000;
 
@@ -34,14 +36,14 @@ const safeEqual = (a, b) => {
   const ba = Buffer.from(a), bb = Buffer.from(b);
   return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
 };
-const issueToken = () => {
-  const exp = String(Date.now() + SESSION_MS);
-  return `${exp}.${sign(exp)}`;
+const issueToken = (user) => {
+  const body = `${user}.${Date.now() + SESSION_MS}`;
+  return `${body}.${sign(body)}`;
 };
 const validToken = (token) => {
   if (!token) return false;
-  const [exp, sig] = token.split('.');
-  return !!sig && safeEqual(sig, sign(exp)) && Number(exp) > Date.now();
+  const [user, exp, sig] = token.split('.');
+  return !!sig && safeEqual(sig, sign(`${user}.${exp}`)) && Number(exp) > Date.now() && !!loadUsers()[user];
 };
 const getCookie = (req, name) => {
   const m = (req.headers.cookie || '').split(';').map((c) => c.trim().split('='));
@@ -176,9 +178,10 @@ app.post('/api/orders', limit(20, 60 * 60 * 1000), upload.fields([{ name: 'image
 });
 
 app.post('/api/admin/login', limit(10, 15 * 60 * 1000), (req, res) => {
+  const user = String((req.body && req.body.user) || '').trim().toLowerCase();
   const pass = String((req.body && req.body.password) || '');
-  if (!safeEqual(sign(pass), sign(adminPassword))) return res.status(401).json({ error: 'Clave incorrecta' });
-  res.setHeader('Set-Cookie', `admin=${issueToken()}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_MS / 1000}`);
+  if (!/^[a-z0-9]{3,30}$/.test(user) || !checkLogin(user, pass)) return res.status(401).json({ error: 'Usuario o clave incorrectos' });
+  res.setHeader('Set-Cookie', `admin=${issueToken(user)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_MS / 1000}`);
   res.json({ ok: true });
 });
 

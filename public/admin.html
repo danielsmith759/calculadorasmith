@@ -11,7 +11,8 @@
 <div class="contenedor">
   <h1>Pedidos DTF UV</h1>
   <div id="login">
-    <input type="password" id="pass" placeholder="Clave de administrador">
+    <input id="user" placeholder="Usuario" autocomplete="username">
+    <input type="password" id="pass" placeholder="Clave" autocomplete="current-password">
     <button id="enter">Entrar</button>
     <div id="err" class="msg err"></div>
   </div>
@@ -49,7 +50,7 @@ async function load() {
 }
 
 $('enter').addEventListener('click', async () => {
-  const res = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('pass').value }) });
+  const res = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: $('user').value, password: $('pass').value }) });
   if (res.ok) { $('err').textContent = ''; $('pass').value = ''; load(); }
   else $('err').textContent = (await res.json()).error;
 });

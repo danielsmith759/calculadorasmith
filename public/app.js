@@ -179,13 +179,14 @@ function renderStyles() {
 }
 
 function renderTerms() {
-  $('terms').innerHTML = config.aclaraciones.map((t, i) => `<label><input type="checkbox" class="term" id="t${i}"> <span></span></label>`).join('');
-  config.aclaraciones.forEach((t, i) => { $('t' + i).nextElementSibling.textContent = t; });
-  document.querySelectorAll('.term').forEach((c) => c.addEventListener('change', updateSend));
+  $('terms').innerHTML = '<ol>' + config.aclaraciones.map(() => '<li></li>').join('') + '</ol>' +
+    '<label><input type="checkbox" id="accept"> <b>He leído y acepto las ' + config.aclaraciones.length + ' aclaraciones.</b></label>';
+  $('terms').querySelectorAll('li').forEach((li, i) => { li.textContent = config.aclaraciones[i]; });
+  $('accept').addEventListener('change', updateSend);
 }
 
 function updateSend() {
-  const ok = montage && !montage.over && [...document.querySelectorAll('.term')].every((c) => c.checked);
+  const ok = montage && !montage.over && $('accept').checked;
   $('send').disabled = !ok;
 }
 
