@@ -97,17 +97,22 @@ function relayout() {
   designs.forEach((d, i) => { if (d.design && d.w > 0) for (let k = 0; k < d.qty; k++) items.push({ d: i, w: d.w, h: d.h }); });
   const boxes = pack(items, config.anchoRolloCm, config.separacionCm);
   if (!boxes) { montage = null; return; }
-  const lengthCm = Math.max(...boxes.map((b) => b.y + b.h));
-  montage = { boxes, lengthCm };
+  const rawLength = Math.max(...boxes.map((b) => b.y + b.h));
+  const lengthCm = Math.max(config.largoMinimoCm, rawLength); // montaje mínimo 58 x 15 cm
+  const over = rawLength > config.largoMaximoCm + config.separacionCm + 0.01; // la separación entre piezas no cuenta
+  montage = { boxes, lengthCm, over };
 
   const used = boxes.reduce((s, b) => s + b.w * b.h, 0);
   const film = config.anchoRolloCm * lengthCm;
   const empty = Math.round((1 - used / film) * 100);
   const q = Pricing.quote(config, style, lengthCm);
   $('stats').textContent = `${boxes.length} pieza(s) · montaje de ${config.anchoRolloCm} × ${lengthCm.toFixed(1)} cm` +
-    (lengthCm < config.largoMinimoCm ? ` (se cobra el mínimo de ${config.largoMinimoCm} cm)` : '');
+    (rawLength < config.largoMinimoCm ? ` (montaje mínimo ${config.anchoRolloCm} × ${config.largoMinimoCm} cm)` : '');
   $('price').textContent = fmt(q.price);
   $('detail').textContent = q.detalle;
+  $('limit').textContent = over
+    ? `El montaje supera ${config.largoMaximoCm} cm (1 metro). Reduce medidas o cantidades; para más metros contáctanos y se manejan por metros aparte.`
+    : '';
   $('waste').textContent = empty > 5
     ? `El ${empty}% del montaje es espacio vacío y se cobra igual porque consume film. Agrega más imágenes o ajusta medidas para aprovecharlo.`
     : '';
@@ -159,7 +164,7 @@ function renderTerms() {
 }
 
 function updateSend() {
-  const ok = montage && [...document.querySelectorAll('.term')].every((c) => c.checked);
+  const ok = montage && !montage.over && [...document.querySelectorAll('.term')].every((c) => c.checked);
   $('send').disabled = !ok;
 }
 

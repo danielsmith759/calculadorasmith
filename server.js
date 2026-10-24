@@ -137,7 +137,9 @@ app.post('/api/orders', limit(20, 60 * 60 * 1000), upload.array('images', MAX_DE
     if (!name || !phone) fail('Nombre y teléfono son obligatorios.');
     if (meta.accepted !== true) fail('Debes aceptar las aclaraciones.');
     const files = req.files || [];
-    const { boxes, lengthCm } = checkLayout(meta, files.length);
+    const { boxes, lengthCm: rawLength } = checkLayout(meta, files.length);
+    if (rawLength > config.largoMaximoCm + config.separacionCm + 0.01) fail(`El montaje supera ${config.largoMaximoCm} cm. Para más metros contáctanos.`);
+    const lengthCm = Math.max(config.largoMinimoCm, rawLength); // montaje mínimo 58 x 15 cm
 
     const { png, dpi } = await composeMontage(meta, files, boxes, lengthCm);
     const { price, detalle } = Pricing.quote(config, meta.style, lengthCm);

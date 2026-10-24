@@ -3,6 +3,7 @@
   "anchoNominalCm": 60,
   "separacionCm": 0.3,
   "largoMinimoCm": 15,
+  "largoMaximoCm": 100,
   "dpi": 300,
   "moneda": "COP",
   "ivaIncluido": false,
@@ -59,7 +60,8 @@
   "aclaraciones": [
     "Uso exclusivo sobre superficies rígidas. El DTF UV está diseñado para materiales rígidos (acrílico, madera, cuero, PVC, metal, vidrio, cerámica). No se garantiza durabilidad sobre textiles ni prendas flexibles.",
     "Ancho fijo de 60 cm (58 cm útiles de impresión). El montaje se arma sobre ese ancho; el largo es variable.",
-    "Medida mínima de venta: 15 cm.",
+    "Montaje mínimo de venta: 58 cm de ancho × 15 cm de largo. Dentro de esa medida no importa el tamaño de la imagen.",
+    "Máximo 1 metro por pedido en línea (pensado para clientes eventuales). Para más metros, contáctanos y se manejan por metros aparte.",
     "El color en pantalla es una referencia. Puede variar ligeramente respecto al resultado impreso por diferencias entre monitores y el proceso UV.",
     "La cotización es un estimado. Queda sujeta a revisión del arte final por parte del taller.",
     "Si el diseño requiere ajustes, montaje o corrección de arte, se cobra diseño adicional."
