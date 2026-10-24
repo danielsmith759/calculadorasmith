@@ -124,6 +124,8 @@
     "Máximo 1 metro por pedido en línea (pensado para clientes eventuales). Para más metros, contáctanos y se manejan por metros aparte.",
     "El color en pantalla es una referencia. Puede variar ligeramente respecto al resultado impreso por diferencias entre monitores y el proceso UV.",
     "La cotización es un estimado. Queda sujeta a revisión del arte final por parte del taller.",
-    "Si el diseño requiere ajustes, montaje o corrección de arte, se cobra diseño adicional."
-  ]
+    "Si el diseño requiere ajustes, montaje o corrección de arte, se cobra diseño adicional.",
+    "Cada montaje se imprime con una franja de 0,8 cm con tu nombre y la fecha para identificar el trabajo; esa franja ocupa parte del largo del montaje."
+  ],
+  "etiquetaCm": 0.8
 }

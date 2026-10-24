@@ -97,10 +97,13 @@ function relayout() {
   designs.forEach((d, i) => { if (d.design && d.w > 0) for (let k = 0; k < d.qty; k++) items.push({ d: i, w: d.w, h: d.h }); });
   const boxes = pack(items, config.anchoRolloCm, config.separacionCm);
   if (!boxes) { montage = null; return; }
-  const rawLength = Math.max(...boxes.map((b) => b.y + b.h));
+  // Al final del montaje va una franja con el nombre del cliente.
+  const layoutLength = Math.max(...boxes.map((b) => b.y + b.h));
+  const labelY = layoutLength + config.separacionCm;
+  const rawLength = labelY + config.etiquetaCm;
   const lengthCm = Math.max(config.largoMinimoCm, rawLength); // montaje mínimo 58 x 15 cm
   const over = rawLength > config.largoMaximoCm + config.separacionCm + 0.01; // la separación entre piezas no cuenta
-  montage = { boxes, lengthCm, over };
+  montage = { boxes, lengthCm, over, labelY };
 
   const used = boxes.reduce((s, b) => s + b.w * b.h, 0);
   const film = config.anchoRolloCm * lengthCm;
@@ -119,6 +122,20 @@ function relayout() {
   drawMontage();
   renderChips();
   updateSend();
+}
+
+// Texto de la franja de identificación (se usa en la vista previa y en el archivo enviado).
+function drawLabel(ctx, w, h) {
+  const name = $('name').value.trim().toUpperCase() || 'NOMBRE DEL CLIENTE';
+  const text = `${name}  ·  ${new Date().toLocaleDateString('es-CO')}`;
+  ctx.fillStyle = '#000';
+  ctx.textBaseline = 'middle';
+  let size = h * 0.6;
+  ctx.font = `bold ${size}px Arial, sans-serif`;
+  const maxW = w - h; // margen izquierdo y derecho
+  const tw = ctx.measureText(text).width;
+  if (tw > maxW) { size *= maxW / tw; ctx.font = `bold ${size}px Arial, sans-serif`; }
+  ctx.fillText(text, h * 0.3, h / 2);
 }
 
 function drawMontage() {
@@ -141,6 +158,10 @@ function drawMontage() {
     }
     ctx.restore();
   }
+  ctx.save();
+  ctx.translate(0, montage.labelY * s);
+  drawLabel(ctx, c.width, config.etiquetaCm * s);
+  ctx.restore();
 }
 
 function renderStyles() {
@@ -352,6 +373,11 @@ $('send').addEventListener('click', async () => {
       ctx.drawImage(d.design, 0, 0, c.width, c.height);
       fd.append('images', await new Promise((r) => c.toBlob(r, 'image/png')), `diseno${i}.png`);
     }
+    const lc = document.createElement('canvas');
+    lc.width = Math.round((config.anchoRolloCm / 2.54) * config.dpi);
+    lc.height = Math.round((config.etiquetaCm / 2.54) * config.dpi);
+    drawLabel(lc.getContext('2d'), lc.width, lc.height);
+    fd.append('label', await new Promise((r) => lc.toBlob(r, 'image/png')), 'etiqueta.png');
     fd.append('meta', JSON.stringify({
       style,
       designs: designs.map((d) => ({ wCm: d.w, hCm: d.h })),
@@ -371,5 +397,7 @@ $('send').addEventListener('click', async () => {
     updateSend();
   }
 });
+
+$('name').addEventListener('input', () => { if (montage) drawMontage(); });
 
 fetch('/api/config').then((r) => r.json()).then((c) => { config = c; renderTerms(); renderStyles(); });

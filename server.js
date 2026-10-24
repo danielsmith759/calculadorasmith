@@ -102,7 +102,7 @@ function checkLayout(meta, fileCount) {
 }
 
 // Compone todos los diseños en un solo PNG de ancho de rollo x largo, con DPI de impresión.
-async function composeMontage(meta, files, boxes, lengthCm) {
+async function composeMontage(meta, files, boxes, lengthCm, label, labelY) {
   const W = config.anchoRolloCm;
   const dpi = Math.min(config.dpi, Math.floor(Math.sqrt(MAX_MONTAGE_PIXELS / ((W / 2.54) * (lengthCm / 2.54)))));
   const px = (cm) => Math.round((cm / 2.54) * dpi);
@@ -119,6 +119,10 @@ async function composeMontage(meta, files, boxes, lengthCm) {
   };
   const composites = [];
   for (const b of boxes) composites.push({ input: await piece(b), left: px(b.x), top: px(b.y) });
+  composites.push({
+    input: await sharp(label.buffer).ensureAlpha().resize(px(W), px(config.etiquetaCm), { fit: 'fill' }).png().toBuffer(),
+    left: 0, top: px(labelY)
+  });
   const png = await sharp({ create: { width: px(W), height: px(lengthCm), channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
     .composite(composites)
     .withMetadata({ density: dpi })
@@ -127,7 +131,7 @@ async function composeMontage(meta, files, boxes, lengthCm) {
   return { png, dpi };
 }
 
-app.post('/api/orders', limit(20, 60 * 60 * 1000), upload.array('images', MAX_DESIGNS), async (req, res) => {
+app.post('/api/orders', limit(20, 60 * 60 * 1000), upload.fields([{ name: 'images', maxCount: MAX_DESIGNS }, { name: 'label', maxCount: 1 }]), async (req, res) => {
   try {
     let meta;
     try { meta = JSON.parse(req.body.meta); } catch { fail('Datos inválidos.'); }
@@ -136,12 +140,16 @@ app.post('/api/orders', limit(20, 60 * 60 * 1000), upload.array('images', MAX_DE
     const note = String(meta.note || '').trim().slice(0, 500);
     if (!name || !phone) fail('Nombre y teléfono son obligatorios.');
     if (meta.accepted !== true) fail('Debes aceptar las aclaraciones.');
-    const files = req.files || [];
-    const { boxes, lengthCm: rawLength } = checkLayout(meta, files.length);
+    const files = (req.files && req.files.images) || [];
+    const label = req.files && req.files.label && req.files.label[0];
+    if (!label) fail('Falta la etiqueta del cliente.');
+    const { boxes, lengthCm: layoutLength } = checkLayout(meta, files.length);
+    const labelY = layoutLength + config.separacionCm; // franja con el nombre del cliente al final
+    const rawLength = labelY + config.etiquetaCm;
     if (rawLength > config.largoMaximoCm + config.separacionCm + 0.01) fail(`El montaje supera ${config.largoMaximoCm} cm. Para más metros contáctanos.`);
     const lengthCm = Math.max(config.largoMinimoCm, rawLength); // montaje mínimo 58 x 15 cm
 
-    const { png, dpi } = await composeMontage(meta, files, boxes, lengthCm);
+    const { png, dpi } = await composeMontage(meta, files, boxes, lengthCm, label, labelY);
     const { price, detalle } = Pricing.quote(config, meta.style, lengthCm);
     const usedCm2 = boxes.reduce((s, b) => s + b.w * b.h, 0);
 

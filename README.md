@@ -8,6 +8,7 @@ Cotizador y recepción de archivos para **DTF UV** (Smith Impresores).
 3. Montaje siempre de 58 cm de ancho, **mínimo 58 × 15 cm** (sin importar el tamaño de las imágenes) y **máximo 1 m** por pedido en línea; más metros se manejan aparte. Precio: precio fijo por rango de largo (un montaje de exactamente 1 m se cobra a precio por metro). El espacio vacío del montaje se cobra igual y se le avisa al cliente. IVA no incluido.
 4. El cliente debe marcar las 6 aclaraciones para poder enviar. El servidor valida el montaje, **recalcula el precio** y arma un único PNG transparente de 58 cm × largo (300 DPI; se reduce solo si el montaje es muy largo para no agotar memoria).
 5. Solo el equipo entra a `/admin.html` (con clave) para ver pedidos y descargar el montaje listo para imprimir. Los archivos no son públicos.
+6. Cada montaje lleva al final una franja de 0,8 cm con el nombre del cliente y la fecha (`etiquetaCm` en `config.json`), para identificar el trabajo al imprimir. Como el servidor puede ser temporal, descarga el PNG y guárdalo en tu unidad; la carpeta `data/` se puede vaciar.
 
 ## Uso
 ```
