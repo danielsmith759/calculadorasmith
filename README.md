@@ -3,7 +3,7 @@
 Cotizador y recepción de archivos para **DTF UV** (Smith Impresores).
 
 ## Cómo funciona
-1. El cliente elige el estilo (Normal, Premium o Relief 2.5D) y sube una o varias imágenes; les quita el fondo (IA en el navegador o por color) y define medida y cantidad de cada una.
+1. El cliente elige el estilo (Premium o Relief 2.5D) y sube una o varias imágenes; les quita el fondo (IA en el navegador o por color) y define medida y cantidad de cada una.
 2. El sistema acomoda todas las piezas solas (con rotación de 90° si ahorra largo) en el ancho útil de 58 cm y mide el **largo total del montaje**.
 3. Montaje siempre de 58 cm de ancho, **mínimo 58 × 15 cm** (sin importar el tamaño de las imágenes) y **máximo 1 m** por pedido en línea; más metros se manejan aparte. Precio: precio fijo por rango de largo (un montaje de exactamente 1 m se cobra a precio por metro). El espacio vacío del montaje se cobra igual y se le avisa al cliente. IVA no incluido.
 4. El cliente debe marcar las 6 aclaraciones para poder enviar. El servidor valida el montaje, **recalcula el precio** y arma un único PNG transparente de 58 cm × largo (300 DPI; se reduce solo si el montaje es muy largo para no agotar memoria).

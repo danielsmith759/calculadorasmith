@@ -8,7 +8,7 @@ const BIG = 100000;        // alto "infinito" del rollo al empaquetar (cm)
 let config;
 let designs = [];   // { original, working, design, ratio, w, h, qty }
 let sel = -1;
-let style = 'normal';
+let style = 'premium';
 let montage = null; // { boxes, lengthCm }
 
 const fmt = (n) => '$' + Math.round(n).toLocaleString('es-CO');

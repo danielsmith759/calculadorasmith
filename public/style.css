@@ -27,7 +27,7 @@ button.sec { background: rgba(255,255,255,.2); color: #fff; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { padding: 8px; border-bottom: 1px solid rgba(255,255,255,.2); text-align: left; }
 td a, td button { width: auto; display: inline-block; padding: 6px 10px; font-size: 13px; text-decoration: none; background: #FFD700; color: #000; border-radius: 5px; font-weight: bold; }
-.styles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 8px 0; }
+.styles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 8px 0; }
 @media (max-width: 720px) { .styles { grid-template-columns: 1fr; } }
 .style-card { border: 2px solid transparent; background: rgba(255,255,255,.1); border-radius: 8px; padding: 12px; cursor: pointer; font-size: 14px; margin: 0; }
 .style-card.sel { border-color: #FFD700; background: rgba(255,215,0,.12); }
