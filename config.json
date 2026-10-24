@@ -1,7 +1,67 @@
 {
-  "precioM2": 60000,
-  "precioMinimo": 5000,
   "anchoRolloCm": 58,
+  "anchoNominalCm": 60,
+  "separacionCm": 0.3,
+  "largoMinimoCm": 15,
   "dpi": 300,
-  "moneda": "COP"
+  "moneda": "COP",
+  "ivaIncluido": false,
+  "estilos": [
+    {
+      "id": "normal",
+      "nombre": "DTF UV Normal",
+      "resumen": "La opción más económica",
+      "puntos": [
+        "Acabado estándar de alta calidad",
+        "1 capa de blanco + color + barniz",
+        "Ideal para la mayoría de aplicaciones sobre superficies rígidas"
+      ]
+    },
+    {
+      "id": "premium",
+      "nombre": "DTF UV Premium",
+      "resumen": "Recomendado para productos de marca y acabados exigentes",
+      "puntos": [
+        "Mayor opacidad y vivacidad de color",
+        "2 capas de blanco + color + barniz",
+        "Los colores se ven más intensos y la calcomanía es más resistente"
+      ]
+    },
+    {
+      "id": "relief",
+      "nombre": "DTF UV Relief 2.5D",
+      "resumen": "Acabado premium exclusivo, alto impacto visual",
+      "puntos": [
+        "Efecto de relieve táctil: se siente en relieve al tacto",
+        "3 capas de blanco + color + 2 de barniz",
+        "Ideal para etiquetas, empaque de lujo y piezas que buscan destacar"
+      ]
+    }
+  ],
+  "rangos": [
+    { "desde": 15, "hasta": 20, "normal": 20000, "premium": 25000, "relief": 37500 },
+    { "desde": 21, "hasta": 30, "normal": 25000, "premium": 31000, "relief": 46000 },
+    { "desde": 31, "hasta": 40, "normal": 30000, "premium": 37000, "relief": 55000 },
+    { "desde": 41, "hasta": 50, "normal": 35000, "premium": 44000, "relief": 64000 },
+    { "desde": 51, "hasta": 60, "normal": 42000, "premium": 52000, "relief": 77000 },
+    { "desde": 61, "hasta": 70, "normal": 48000, "premium": 60000, "relief": 88000 },
+    { "desde": 71, "hasta": 80, "normal": 55000, "premium": 69000, "relief": 101000 },
+    { "desde": 81, "hasta": 90, "normal": 62000, "premium": 78000, "relief": 114000 },
+    { "desde": 91, "hasta": 99, "normal": 67000, "premium": 84000, "relief": 123000 }
+  ],
+  "tramos": [
+    { "desde": 1,  "dcto": 0,    "normal": 68000, "premium": 85000, "relief": 125000 },
+    { "desde": 5,  "dcto": 0.05, "normal": 64600, "premium": 80750, "relief": 118750 },
+    { "desde": 10, "dcto": 0.08, "normal": 62560, "premium": 78200, "relief": 115000 },
+    { "desde": 25, "dcto": 0.12, "normal": 59840, "premium": 74800, "relief": 110000 },
+    { "desde": 50, "dcto": 0.15, "normal": 57800, "premium": 72250, "relief": 106250 }
+  ],
+  "aclaraciones": [
+    "Uso exclusivo sobre superficies rígidas. El DTF UV está diseñado para materiales rígidos (acrílico, madera, cuero, PVC, metal, vidrio, cerámica). No se garantiza durabilidad sobre textiles ni prendas flexibles.",
+    "Ancho fijo de 60 cm (58 cm útiles de impresión). El montaje se arma sobre ese ancho; el largo es variable.",
+    "Medida mínima de venta: 15 cm.",
+    "El color en pantalla es una referencia. Puede variar ligeramente respecto al resultado impreso por diferencias entre monitores y el proceso UV.",
+    "La cotización es un estimado. Queda sujeta a revisión del arte final por parte del taller.",
+    "Si el diseño requiere ajustes, montaje o corrección de arte, se cobra diseño adicional."
+  ]
 }

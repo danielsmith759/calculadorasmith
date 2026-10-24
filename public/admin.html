@@ -19,7 +19,7 @@
     <button id="logout" class="sec" style="width:auto">Salir</button>
     <div style="overflow-x:auto">
       <table>
-        <thead><tr><th>Ref</th><th>Fecha</th><th>Cliente</th><th>Medida</th><th>Cant.</th><th>Total</th><th>Estado</th><th>Archivo</th></tr></thead>
+        <thead><tr><th>Ref</th><th>Fecha</th><th>Cliente</th><th>Estilo</th><th>Montaje</th><th>Total (sin IVA)</th><th>Estado</th><th>Archivo</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>
@@ -40,9 +40,9 @@ async function load() {
       <td>${esc(o.id.slice(0, 8).toUpperCase())}</td>
       <td>${new Date(o.createdAt).toLocaleString('es-CO')}</td>
       <td>${esc(o.name)}<br><span class="muted">${esc(o.phone)}${o.note ? ' · ' + esc(o.note) : ''}</span></td>
-      <td>${o.widthCm} × ${o.heightCm} cm</td>
-      <td>${o.qty}</td>
-      <td>${fmt(o.price)}<br><span class="muted">${o.areaM2} m²</span></td>
+      <td>${esc(o.style)}</td>
+      <td>58 × ${o.lengthCm} cm<br><span class="muted">${o.pieces} pzas · ${o.emptyPct}% vacío</span></td>
+      <td>${fmt(o.price)}<br><span class="muted">${esc(o.detalle)}</span></td>
       <td><button data-id="${esc(o.id)}" data-status="${o.status === 'pendiente' ? 'impreso' : 'pendiente'}">${esc(o.status)}</button></td>
       <td><a href="/api/admin/orders/${esc(o.id)}/download">Descargar PNG</a></td>
     </tr>`).join('') || '<tr><td colspan="8">Sin pedidos</td></tr>';

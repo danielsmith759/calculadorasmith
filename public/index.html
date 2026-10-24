@@ -11,17 +11,22 @@
   <header>
     <img src="logo.png" alt="Smith Impresores" class="logo">
     <h1>Cotizador DTF UV</h1>
-    <p class="muted">Sube tu diseño, quítale el fondo, ajusta la medida y conoce el precio al instante.</p>
+    <p class="muted">Sube tus diseños, quítales el fondo, ajusta las medidas y mira cómo queda el montaje y cuánto cuesta.</p>
   </header>
 
-  <label for="file">1. Sube tu imagen (PNG, JPG, WEBP)</label>
-  <input type="file" id="file" accept="image/*">
+  <h2>1. Elige el estilo</h2>
+  <div class="styles" id="styles"></div>
+  <p class="muted">Precios sobre 58 cm de ancho, IVA no incluido. Los valores mostrados corresponden a tu montaje actual.</p>
+
+  <h2>2. Sube tus imágenes</h2>
+  <input type="file" id="file" accept="image/*" multiple>
+  <div class="chips" id="chips"></div>
 
   <div id="editor" class="hidden">
     <div class="grid">
       <div>
         <div class="preview"><canvas id="preview"></canvas></div>
-        <p class="muted">El cuadriculado indica las zonas transparentes (no se imprimen ni se cobran).</p>
+        <p class="muted">El cuadriculado indica zonas transparentes (no se imprimen).</p>
         <div class="row">
           <button id="btnAI" type="button">Quitar fondo (IA)</button>
           <button id="btnColor" type="button" class="sec">Quitar color de fondo</button>
@@ -31,30 +36,47 @@
         <button id="btnReset" type="button" class="sec">Restaurar original</button>
         <div id="status" class="msg muted"></div>
       </div>
-
       <div>
-        <label>2. Medida (cm) — se mantiene la proporción</label>
+        <label>Medida de esta imagen (cm) — se mantiene la proporción</label>
         <div class="row">
           <input type="number" id="w" min="1" step="0.1" placeholder="Ancho cm" aria-label="Ancho en cm">
           <input type="number" id="h" min="1" step="0.1" placeholder="Alto cm" aria-label="Alto en cm">
         </div>
-        <label for="qty">Cantidad</label>
-        <input type="number" id="qty" min="1" max="1000" value="1">
-
-        <div class="muted" id="areaInfo"></div>
-        <div class="price" id="price">$0</div>
+        <label for="qty">Cantidad de esta imagen</label>
+        <input type="number" id="qty" min="1" max="200" value="1">
         <div class="msg err" id="sizeWarn"></div>
-
-        <label>3. Tus datos</label>
-        <input id="name" placeholder="Nombre" autocomplete="name">
-        <input id="phone" placeholder="WhatsApp / teléfono" autocomplete="tel" inputmode="tel">
-        <textarea id="note" rows="2" placeholder="Observaciones (opcional)"></textarea>
-        <button id="send" type="button">Enviar pedido</button>
-        <div id="result" class="msg"></div>
       </div>
     </div>
   </div>
+
+  <div id="quote" class="hidden">
+    <h2>3. Tu montaje</h2>
+    <div class="grid">
+      <div>
+        <div class="montage"><canvas id="montage"></canvas></div>
+        <p class="muted">Las imágenes se acomodan solas en los 58 cm de ancho.</p>
+      </div>
+      <div>
+        <div class="muted" id="stats"></div>
+        <div class="price" id="price">$0</div>
+        <div class="muted" id="detail"></div>
+        <p class="warn" id="waste"></p>
+        <p class="muted">IVA no incluido. Cotización estimada, sujeta a revisión del arte final.</p>
+      </div>
+    </div>
+
+    <h2>4. Aclaraciones</h2>
+    <div class="terms" id="terms"></div>
+
+    <h2>5. Tus datos</h2>
+    <input id="name" placeholder="Nombre" autocomplete="name">
+    <input id="phone" placeholder="WhatsApp / teléfono" autocomplete="tel" inputmode="tel">
+    <textarea id="note" rows="2" placeholder="Observaciones (opcional)"></textarea>
+    <button id="send" type="button" disabled>Enviar pedido</button>
+    <div id="result" class="msg"></div>
+  </div>
 </div>
+<script src="pricing.js"></script>
 <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -4,6 +4,7 @@ const sharp = require('sharp');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const Pricing = require('./public/pricing.js');
 
 const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -50,12 +51,6 @@ const getCookie = (req, name) => {
 const requireAdmin = (req, res, next) =>
   validToken(getCookie(req, 'admin')) ? next() : res.status(401).json({ error: 'No autorizado' });
 
-const calcPrice = (widthCm, heightCm, qty) => {
-  const areaM2 = (widthCm * heightCm) / 10000 * qty;
-  const price = Math.max(config.precioMinimo, Math.round(areaM2 * config.precioM2 / 100) * 100);
-  return { areaM2, price };
-};
-
 // Límite simple por IP para evitar spam de pedidos/intentos de clave.
 const hits = new Map();
 const limit = (max, windowMs) => (req, res, next) => {
@@ -68,7 +63,10 @@ const limit = (max, windowMs) => (req, res, next) => {
   next();
 };
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024 } });
+const MAX_DESIGNS = 60;
+const MAX_INSTANCES = 300;
+const MAX_MONTAGE_PIXELS = 120e6; // tope de memoria al componer el montaje
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: MAX_DESIGNS } });
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json());
@@ -76,45 +74,94 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/config', (req, res) => res.json(config));
 
-app.post('/api/orders', limit(20, 60 * 60 * 1000), upload.single('image'), async (req, res) => {
+class Invalid extends Error {}
+const fail = (msg) => { throw new Invalid(msg); };
+
+// Valida el montaje enviado por el cliente y devuelve el largo real (el precio sale de aquí, no del cliente).
+function checkLayout(meta, fileCount) {
+  const W = config.anchoRolloCm, EPS = 0.01;
+  if (!config.estilos.some((e) => e.id === meta.style)) fail('Estilo inválido.');
+  if (!Array.isArray(meta.designs) || meta.designs.length !== fileCount || !fileCount) fail('Imágenes inválidas.');
+  for (const d of meta.designs) {
+    if (!(d.wCm > 0 && d.hCm > 0) || Math.min(d.wCm, d.hCm) > W || Math.max(d.wCm, d.hCm) > 1000) fail('Medida de diseño inválida.');
+  }
+  if (!Array.isArray(meta.layout) || !meta.layout.length || meta.layout.length > MAX_INSTANCES) fail('Montaje inválido.');
+  const boxes = meta.layout.map((it) => {
+    const d = meta.designs[it.d];
+    if (!d || !Number.isFinite(it.x) || !Number.isFinite(it.y)) fail('Montaje inválido.');
+    const w = it.rot ? d.hCm : d.wCm, h = it.rot ? d.wCm : d.hCm;
+    if (it.x < -EPS || it.y < -EPS || it.x + w > W + EPS) fail('Hay diseños fuera del ancho del rollo.');
+    return { x: it.x, y: it.y, w, h, d: it.d, rot: !!it.rot };
+  });
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+    const a = boxes[i], b = boxes[j];
+    if (a.x < b.x + b.w - EPS && b.x < a.x + a.w - EPS && a.y < b.y + b.h - EPS && b.y < a.y + a.h - EPS) fail('Hay diseños superpuestos.');
+  }
+  if (!meta.designs.every((_, i) => boxes.some((b) => b.d === i))) fail('Falta un diseño en el montaje.');
+  return { boxes, lengthCm: Math.max(...boxes.map((b) => b.y + b.h)) };
+}
+
+// Compone todos los diseños en un solo PNG de ancho de rollo x largo, con DPI de impresión.
+async function composeMontage(meta, files, boxes, lengthCm) {
+  const W = config.anchoRolloCm;
+  const dpi = Math.min(config.dpi, Math.floor(Math.sqrt(MAX_MONTAGE_PIXELS / ((W / 2.54) * (lengthCm / 2.54)))));
+  const px = (cm) => Math.round((cm / 2.54) * dpi);
+  const cache = new Map();
+  const piece = async (b) => {
+    const key = `${b.d}:${b.rot}`;
+    if (!cache.has(key)) {
+      const d = meta.designs[b.d];
+      let img = sharp(files[b.d].buffer).ensureAlpha().resize(px(d.wCm), px(d.hCm), { fit: 'fill' });
+      if (b.rot) img = img.rotate(90);
+      cache.set(key, await img.png().toBuffer());
+    }
+    return cache.get(key);
+  };
+  const composites = [];
+  for (const b of boxes) composites.push({ input: await piece(b), left: px(b.x), top: px(b.y) });
+  const png = await sharp({ create: { width: px(W), height: px(lengthCm), channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite(composites)
+    .withMetadata({ density: dpi })
+    .png()
+    .toBuffer();
+  return { png, dpi };
+}
+
+app.post('/api/orders', limit(20, 60 * 60 * 1000), upload.array('images', MAX_DESIGNS), async (req, res) => {
   try {
-    const widthCm = parseFloat(req.body.widthCm);
-    const heightCm = parseFloat(req.body.heightCm);
-    const qty = parseInt(req.body.qty, 10);
-    const name = String(req.body.name || '').trim().slice(0, 100);
-    const phone = String(req.body.phone || '').trim().slice(0, 40);
-    const note = String(req.body.note || '').trim().slice(0, 500);
+    let meta;
+    try { meta = JSON.parse(req.body.meta); } catch { fail('Datos inválidos.'); }
+    const name = String(meta.name || '').trim().slice(0, 100);
+    const phone = String(meta.phone || '').trim().slice(0, 40);
+    const note = String(meta.note || '').trim().slice(0, 500);
+    if (!name || !phone) fail('Nombre y teléfono son obligatorios.');
+    if (meta.accepted !== true) fail('Debes aceptar las aclaraciones.');
+    const files = req.files || [];
+    const { boxes, lengthCm } = checkLayout(meta, files.length);
 
-    if (!req.file) return res.status(400).json({ error: 'Falta la imagen.' });
-    if (!name || !phone) return res.status(400).json({ error: 'Nombre y teléfono son obligatorios.' });
-    if (!(widthCm > 0 && heightCm > 0 && qty >= 1 && qty <= 1000))
-      return res.status(400).json({ error: 'Medidas o cantidad inválidas.' });
-    if (Math.min(widthCm, heightCm) > config.anchoRolloCm)
-      return res.status(400).json({ error: `El diseño excede el ancho del rollo (${config.anchoRolloCm} cm).` });
-
-    // sharp valida que sea una imagen real y la normaliza a PNG con DPI de impresión.
-    const png = await sharp(req.file.buffer)
-      .ensureAlpha()
-      .png()
-      .withMetadata({ density: config.dpi })
-      .toBuffer();
+    const { png, dpi } = await composeMontage(meta, files, boxes, lengthCm);
+    const { price, detalle } = Pricing.quote(config, meta.style, lengthCm);
+    const usedCm2 = boxes.reduce((s, b) => s + b.w * b.h, 0);
 
     const id = crypto.randomBytes(16).toString('hex');
     fs.writeFileSync(path.join(FILES_DIR, `${id}.png`), png);
-
-    const { areaM2, price } = calcPrice(widthCm, heightCm, qty);
-    const order = {
-      id, name, phone, note, widthCm, heightCm, qty,
-      areaM2: Number(areaM2.toFixed(4)), price,
-      status: 'pendiente', createdAt: new Date().toISOString()
-    };
     const orders = loadOrders();
-    orders.unshift(order);
+    orders.unshift({
+      id, name, phone, note,
+      style: meta.style,
+      lengthCm: Number(lengthCm.toFixed(2)),
+      pieces: boxes.length,
+      emptyPct: Math.round((1 - usedCm2 / (config.anchoRolloCm * lengthCm)) * 100),
+      price, detalle, dpi,
+      acceptedAt: new Date().toISOString(),
+      status: 'pendiente', createdAt: new Date().toISOString()
+    });
     saveOrders(orders);
     res.json({ ok: true, ref: id.slice(0, 8).toUpperCase(), price });
   } catch (e) {
+    if (e instanceof Invalid) return res.status(400).json({ error: e.message });
     console.error(e);
-    res.status(400).json({ error: 'No se pudo procesar la imagen.' });
+    res.status(400).json({ error: 'No se pudo procesar el pedido.' });
   }
 });
 
@@ -146,7 +193,7 @@ app.get('/api/admin/orders/:id/download', requireAdmin, (req, res) => {
   if (!order) return res.status(404).end();
   const file = path.join(FILES_DIR, `${order.id}.png`);
   const safe = order.name.replace(/[^\w-]+/g, '_');
-  const filename = `${order.id.slice(0, 8)}_${safe}_${order.widthCm}x${order.heightCm}cm_x${order.qty}.png`;
+  const filename = `${order.id.slice(0, 8)}_${safe}_${order.style}_58x${order.lengthCm}cm.png`;
   res.download(file, filename);
 });
 
