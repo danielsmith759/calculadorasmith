@@ -17,6 +17,7 @@ let busy = false;
 let sent = false;
 let aiModule = null;
 let aiAccepted = false;
+let gapCm = null;   // separación entre diseños elegida por el cliente (mínimo config.separacionCm)
 
 const fmt = (n) => '$' + Math.round(n).toLocaleString('es-CO');
 const say = (text, cls = '') => { $('status').textContent = text; $('status').className = 'msg ' + cls; };
@@ -141,12 +142,12 @@ function relayout() {
   else {
     const items = [];
     designs.forEach((d, i) => { for (let k = 0; k < d.qty; k++) items.push({ d: i, w: d.w, h: d.h }); });
-    const boxes = packBest(items, config.anchoRolloCm, config.separacionCm);
+    const boxes = packBest(items, config.anchoRolloCm, gapCm);
     if (!boxes) invalidQuote('No se pudo acomodar el montaje. Revisa las medidas.');
     else {
       // Al final del montaje va una franja con el nombre del cliente.
       const layoutLength = Math.max(...boxes.map((b) => b.y + b.h));
-      const labelY = layoutLength + config.separacionCm;
+      const labelY = layoutLength + gapCm;
       const rawLength = labelY + config.etiquetaCm;
       const lengthCm = Math.max(config.largoMinimoCm, rawLength); // montaje mínimo 58 x 15 cm
       const over = rawLength > config.largoMaximoCm + 1e-9;
@@ -371,6 +372,16 @@ for (const id of ['w', 'h', 'qty']) {
     $('sizeWarn').textContent = '';
   });
 }
+// Separación entre diseños en mm: nunca menos del mínimo técnico.
+$('gap').addEventListener('input', () => {
+  const mm = parseFloat($('gap').value);
+  const min = config.separacionCm * 10, max = config.separacionMaxCm * 10;
+  if (!(mm >= min && mm <= max)) { $('gapWarn').textContent = `La separación debe estar entre ${min} y ${max} mm.`; return; }
+  $('gapWarn').textContent = '';
+  gapCm = mm / 10;
+  relayout();
+});
+$('gap').addEventListener('change', () => { $('gap').value = gapCm * 10; $('gapWarn').textContent = ''; });
 $('tol').addEventListener('input', () => { $('tolVal').textContent = $('tol').value; });
 
 $('file').addEventListener('change', async () => {
@@ -573,6 +584,7 @@ $('send').addEventListener('click', async () => {
     fd.append('label', await new Promise((r) => lc.toBlob(r, 'image/png')), 'etiqueta.png');
     fd.append('meta', JSON.stringify({
       style,
+      gapCm,
       designs: designs.map((d) => ({ wCm: d.w, hCm: d.h })),
       layout: montage.boxes.map((b) => ({ d: b.d, x: b.x, y: b.y, rot: b.rot })),
       name: $('name').value, phone: $('phone').value, note: $('note').value,
@@ -602,4 +614,8 @@ $('again').addEventListener('click', () => location.reload());
 for (const id of ['name', 'phone']) $(id).addEventListener('input', () => { if (montage) drawMontage(); updateSend(); });
 window.addEventListener('beforeunload', (e) => { if (designs.length && !sent) { e.preventDefault(); e.returnValue = ''; } });
 
-fetch('/api/config').then((r) => r.json()).then((c) => { config = c; renderTerms(); renderStyles(); updateSend(); });
+fetch('/api/config').then((r) => r.json()).then((c) => {
+  config = c;
+  gapCm = c.separacionCm;
+  $('gap').min = c.separacionCm * 10; $('gap').max = c.separacionMaxCm * 10; $('gap').value = c.separacionCm * 10;
+  renderTerms(); renderStyles(); updateSend(); });

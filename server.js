@@ -139,7 +139,8 @@ const fail = (msg) => { throw new Invalid(msg); };
 
 // Valida el montaje enviado por el cliente y devuelve el largo real (el precio sale de aquí, no del cliente).
 function checkLayout(meta, fileCount) {
-  const W = config.anchoRolloCm, G = config.separacionCm, EPS = 0.01;
+  const W = config.anchoRolloCm, G = meta.gapCm, EPS = 0.01;
+  if (!Number.isFinite(G) || G < config.separacionCm - 1e-9 || G > config.separacionMaxCm + 1e-9) fail('Separación entre diseños inválida.');
   if (!config.estilos.some((e) => e.id === meta.style)) fail('Estilo inválido.');
   if (!Array.isArray(meta.designs) || meta.designs.length !== fileCount || !fileCount) fail('Imágenes inválidas.');
   for (const d of meta.designs) {
@@ -223,7 +224,7 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
       const label = req.files && req.files.label && req.files.label[0];
       if (!label) fail('Falta la etiqueta del cliente.');
       const { boxes, lengthCm: layoutLength } = checkLayout(meta, files.length);
-      const labelY = layoutLength + config.separacionCm; // franja con el nombre del cliente al final
+      const labelY = layoutLength + meta.gapCm; // franja con el nombre del cliente al final
       const rawLength = labelY + config.etiquetaCm;
       if (rawLength > config.largoMaximoCm + 0.01) fail(`El montaje supera ${config.largoMaximoCm} cm. Para más metros contáctanos.`);
       const lengthCm = Math.max(config.largoMinimoCm, rawLength); // montaje mínimo 58 x 15 cm
@@ -256,6 +257,7 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
       orders.unshift({
         id, name, phone, note,
         style: meta.style,
+        gapCm: meta.gapCm,
         lengthCm: Number(lengthCm.toFixed(2)),
         pieces: boxes.length,
         items: pieces,

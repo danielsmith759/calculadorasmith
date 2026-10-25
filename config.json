@@ -1,7 +1,7 @@
 {
   "anchoRolloCm": 58,
   "anchoNominalCm": 60,
-  "separacionCm": 0.3,
+  "separacionCm": 0.5,
   "largoMinimoCm": 15,
   "largoMaximoCm": 100,
   "dpi": 300,
@@ -128,5 +128,6 @@
     "Cada montaje se imprime con una franja de 0,8 cm con tu nombre y la fecha para identificar el trabajo; esa franja ocupa parte del largo del montaje."
   ],
   "etiquetaCm": 0.8,
-  "maxPiezas": 300
+  "maxPiezas": 300,
+  "separacionMaxCm": 2
 }

@@ -17,7 +17,7 @@ npm install
 # Mac/Linux:      ADMIN_USERS="usuario1:clave1,usuario2:clave2" npm start
 ```
 - Usuarios del panel `/admin.html`: variable `ADMIN_USERS` (recomendado) o, solo en local, un `usuarios.json` creado con `node scripts/usuario.js <usuario> <clave>`. Ese archivo **no se sube** al repositorio.
-- `config.json`: tablas de precios (`rangos`, `tramos`), estilos, aclaraciones, `anchoRolloCm`, `separacionCm`, `etiquetaCm`, `maxPiezas`, `dpi`. `public/pricing.js` calcula el precio en el navegador y en el servidor.
+- `config.json`: tablas de precios (`rangos`, `tramos`), estilos, aclaraciones, `anchoRolloCm`, `separacionCm` (mínimo, 5 mm) y `separacionMaxCm`, `etiquetaCm`, `maxPiezas`, `dpi`. `public/pricing.js` calcula el precio en el navegador y en el servidor.
 - Datos en `data/` (pedidos y PNGs); cambia la ruta con `DATA_DIR`.
 - Límites: 30 imágenes y 300 piezas por pedido, 25 MB por imagen. El montaje se compone de a uno (cola) y con tope de 60 Mpx (`MAX_MONTAGE_PIXELS`): 1 m sale a ~260 ppp, montajes cortos a 300 ppp. Pico medido: ~400 MB con 3 pedidos de 1 m simultáneos.
 - La IA de quitar fondo (`@imgly/background-removal`, licencia **AGPL**) se descarga (~100 MB) desde un CDN en el navegador del cliente. Para uso comercial hay que revisar la licencia (ver notas).
