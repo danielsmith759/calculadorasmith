@@ -17,7 +17,21 @@
       detalle: `${m.toFixed(2)} m × ${t[style].toLocaleString('es-CO')}/m${pct}`
     };
   }
-  const api = { quote };
+  // Vinilo: precio por m² del montaje (ancho usado x largo) según la variante, más corte si se cobra aparte.
+  function quoteVinyl(cfg, variantId, usedWidthCm, lengthCm) {
+    const v = cfg.vinilo;
+    const variant = v.variantes.find((x) => x.id === variantId);
+    const real = (usedWidthCm * lengthCm) / 10000;
+    const area = Math.max(v.areaMinimaM2, real);
+    const perM2 = variant.precioM2 + (v.cortePorM2 || 0);
+    const minNote = real < v.areaMinimaM2 ? ` (mínimo ${String(v.areaMinimaM2).replace('.', ',')} m²)` : '';
+    return {
+      price: Math.round((area * perM2) / 100) * 100,
+      area,
+      detalle: `${area.toFixed(3).replace('.', ',')} m²${minNote} × ${perM2.toLocaleString('es-CO')}/m²`
+    };
+  }
+  const api = { quote, quoteVinyl };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Pricing = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

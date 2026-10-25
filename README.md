@@ -10,6 +10,13 @@ Cotizador y recepción de archivos para **DTF UV** (Smith Impresores).
 5. Solo el equipo entra a `/admin.html` (con clave) para ver pedidos y descargar el montaje listo para imprimir. Los archivos no son públicos.
 6. Cada montaje lleva al final una franja de 0,8 cm con el nombre del cliente y la fecha (`etiquetaCm` en `config.json`), para identificar el trabajo al imprimir. Como el servidor puede ser temporal, descarga el PNG y guárdalo en tu unidad; la carpeta `data/` se puede vaciar.
 
+## Vinilo con corte
+- El cliente elige **Vinilo con corte** y el tipo: ecosolvente (Epson SureColor · Onyx) o UV (Mimaki UJV100-160 · RasterLink) con o sin blanco/brillo. Precios por m² del montaje (ancho usado × largo) en `config.json > vinilo.variantes`; corte aparte en `cortePorM2` (hoy 0); mínimo `areaMinimaM2`.
+- La **guía de corte** se calcula sola desde la silueta de cada diseño (`public/contour.js`) con el margen elegido (1–5 mm). El cliente la ve en rosado punteado.
+- El taller descarga:
+  - **PDF de producción** (página = ancho útil + `margenCm` a cada lado para las marcas de registro): imagen, capa `White` (un poco reducida, `blancoReduccionMm`), capa `Gloss` y línea `CutContour`, como colores directos con sobreimpresión. Nombres configurables en `vinilo.spots` (verificar los que espera RasterLink/Onyx).
+  - **SVG de corte** con las mismas líneas y posiciones, para importar en SignMaster (SkyCut). Las marcas de registro las agrega SignMaster.
+
 ## Uso
 ```
 npm install

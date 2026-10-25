@@ -6,6 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const { promisify } = require('util');
 const Pricing = require('./public/pricing.js');
+const Contour = require('./public/contour.js');
+const { buildPdf, buildCutSvg, mapPoint, PT } = require('./lib/pdf.js');
 
 const scrypt = promisify(crypto.scrypt);
 const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
@@ -138,14 +140,30 @@ class Invalid extends Error {}
 const fail = (msg) => { throw new Invalid(msg); };
 
 // Valida el montaje enviado por el cliente y devuelve el largo real (el precio sale de aquí, no del cliente).
-function checkLayout(meta, fileCount) {
-  const W = config.anchoRolloCm, G = meta.gapCm, EPS = 0.01;
-  if (!Number.isFinite(G) || G < config.separacionCm - 1e-9 || G > config.separacionMaxCm + 1e-9) fail('Separación entre diseños inválida.');
+// Parámetros del montaje según el producto (DTF UV o vinilo con corte).
+function productParams(meta) {
+  if (meta.product === 'vinilo') {
+    const v = config.vinilo;
+    const off = meta.offsetCm;
+    if (!Number.isFinite(off) || off < v.margenCorteMinCm - 1e-9 || off > v.margenCorteMaxCm + 1e-9) fail('Margen de corte inválido.');
+    const variant = v.variantes.find((x) => x.id === meta.variant);
+    if (!variant) fail('Tipo de vinilo inválido.');
+    if (variant.capas.includes('elegir') && !['blanco', 'brillo'].includes(meta.capa)) fail('Elige blanco o brillo.');
+    if (!['medio', 'total'].includes(meta.cutType)) fail('Tipo de corte inválido.');
+    return { W: v.anchoUtilCm, gapMin: v.separacionCm, gapMax: v.separacionMaxCm, off, minLen: v.largoMinimoCm, maxLen: v.largoMaximoCm, variant };
+  }
   if (!config.estilos.some((e) => e.id === meta.style)) fail('Estilo inválido.');
+  return { W: config.anchoRolloCm, gapMin: config.separacionCm, gapMax: config.separacionMaxCm, off: 0, minLen: config.largoMinimoCm, maxLen: config.largoMaximoCm };
+}
+
+// Las cajas incluyen el margen de corte (off) alrededor de cada diseño.
+function checkLayout(meta, fileCount, P) {
+  const W = P.W, G = meta.gapCm, EPS = 0.01;
+  if (!Number.isFinite(G) || G < P.gapMin - 1e-9 || G > P.gapMax + 1e-9) fail('Separación entre diseños inválida.');
   if (!Array.isArray(meta.designs) || meta.designs.length !== fileCount || !fileCount) fail('Imágenes inválidas.');
   for (const d of meta.designs) {
     if (!d || !Number.isFinite(d.wCm) || !Number.isFinite(d.hCm) || Math.min(d.wCm, d.hCm) < 0.5 ||
-      Math.min(d.wCm, d.hCm) > W || Math.max(d.wCm, d.hCm) > config.largoMaximoCm) fail('Medida de diseño inválida.');
+      Math.min(d.wCm, d.hCm) + 2 * P.off > W || Math.max(d.wCm, d.hCm) > P.maxLen) fail('Medida de diseño inválida.');
   }
   if (!Array.isArray(meta.layout) || !meta.layout.length) fail('Montaje inválido.');
   if (meta.layout.length > MAX_INSTANCES) fail(`Máximo ${MAX_INSTANCES} piezas por pedido.`);
@@ -153,7 +171,7 @@ function checkLayout(meta, fileCount) {
     if (!it || !Number.isInteger(it.d) || it.d < 0 || it.d >= meta.designs.length || typeof it.rot !== 'boolean' ||
       !Number.isFinite(it.x) || !Number.isFinite(it.y)) fail('Montaje inválido.');
     const d = meta.designs[it.d];
-    const w = it.rot ? d.hCm : d.wCm, h = it.rot ? d.wCm : d.hCm;
+    const w = (it.rot ? d.hCm : d.wCm) + 2 * P.off, h = (it.rot ? d.wCm : d.hCm) + 2 * P.off;
     if (it.x < -EPS || it.y < -EPS || it.x + w > W + EPS) fail('Hay diseños fuera del ancho del rollo.');
     return { x: it.x, y: it.y, w, h, d: it.d, rot: it.rot };
   });
@@ -203,6 +221,58 @@ async function composeMontage(meta, files, boxes, lengthCm, label, labelY, outPa
   return dpi;
 }
 
+// Vinilo: PDF de producción (imagen + blanco/brillo + CutContour) y SVG de corte para SignMaster.
+async function buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, outBase) {
+  const v = config.vinilo;
+  const M = v.margenCm; // espacio libre alrededor para las marcas de registro de la plotter
+  const capas = P.variant.capas.includes('elegir') ? [meta.capa] : P.variant.capas;
+  const images = [], contours = [];
+  for (let i = 0; i < files.length; i++) {
+    const d = meta.designs[i];
+    let img = input(files[i]).ensureAlpha();
+    const m = await input(files[i]).metadata();
+    if (m.width * m.height > 16e6) img = img.resize({ width: Math.round(m.width * Math.sqrt(16e6 / (m.width * m.height))) });
+    const { data, info } = await img.raw().toBuffer({ resolveWithObject: true });
+    const n = info.width * info.height;
+    const solid = new Uint8Array(n);
+    for (let p = 0; p < n; p++) solid[p] = data[p * 4 + 3] >= 128 ? 1 : 0;
+    let white = null;
+    if (capas.includes('blanco')) {
+      // Blanco un poco más pequeño que el diseño para que no se asome por los bordes.
+      const chokePx = (v.blancoReduccionMm / 10) * (info.width / d.wCm);
+      white = solid;
+      if (chokePx >= 0.5) {
+        const bg = new Uint8Array(n);
+        for (let p = 0; p < n; p++) bg[p] = solid[p] ? 0 : 1;
+        const dist = Contour.distanceSq(bg, info.width, info.height);
+        white = new Uint8Array(n);
+        for (let p = 0; p < n; p++) white[p] = solid[p] && dist[p] > chokePx * chokePx ? 1 : 0;
+      }
+    }
+    images.push({ width: info.width, height: info.height, rgba: data, white, gloss: capas.includes('brillo') ? solid : null });
+    const ppc = Contour.contourPxPerCm(d.wCm, d.hCm);
+    const cw = Math.max(2, Math.round(d.wCm * ppc)), ch = Math.max(2, Math.round(d.hCm * ppc));
+    const alpha = await input(files[i]).ensureAlpha().resize(cw, ch, { fit: 'fill' }).extractChannel(3).raw().toBuffer();
+    contours.push(Contour.cutContours(alpha, cw, ch, cw / d.wCm, P.off));
+  }
+  const pieces = [], cuts = [];
+  for (const b of boxes) {
+    const d = meta.designs[b.d];
+    const x = M + b.x + P.off, y = M + b.y + P.off;
+    pieces.push({ img: b.d, x, y, w: d.wCm, h: d.hCm, rot: b.rot });
+    for (const poly of contours[b.d]) cuts.push(poly.map(([px, py]) => mapPoint(px, py, x, y, d.wCm, d.hCm, b.rot)));
+  }
+  const pageW = P.W + 2 * M, pageH = lengthCm + 2 * M;
+  const text = `${name.toUpperCase()}  ·  ${new Date().toLocaleDateString('es-CO')}  ·  ${P.variant.nombre}`;
+  const pdf = buildPdf({
+    pageW, pageH, images, pieces, cuts,
+    label: { text, x: M, y: M + labelY + config.etiquetaCm * 0.75, size: config.etiquetaCm * PT * 0.6 },
+    spots: v.spots
+  });
+  fs.writeFileSync(outBase + '.pdf', pdf);
+  fs.writeFileSync(outBase + '.svg', buildCutSvg(pageW, pageH, cuts));
+}
+
 const tooBig = (req, res, next) =>
   Number(req.headers['content-length']) > MAX_REQUEST_BYTES
     ? res.status(413).json({ error: 'El pedido es demasiado pesado. Usa imágenes más livianas o menos imágenes.' })
@@ -220,14 +290,17 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
       const note = String(meta.note || '').trim().slice(0, 500);
       if (!name || !phone) fail('Nombre y teléfono son obligatorios.');
       if (meta.accepted !== true) fail('Debes aceptar las aclaraciones.');
+      const vinyl = meta.product === 'vinilo';
+      const P = productParams(meta);
       const files = (req.files && req.files.images) || [];
       const label = req.files && req.files.label && req.files.label[0];
-      if (!label) fail('Falta la etiqueta del cliente.');
-      const { boxes, lengthCm: layoutLength } = checkLayout(meta, files.length);
+      if (!label && !vinyl) fail('Falta la etiqueta del cliente.');
+      const { boxes, lengthCm: layoutLength } = checkLayout(meta, files.length, P);
       const labelY = layoutLength + meta.gapCm; // franja con el nombre del cliente al final
       const rawLength = labelY + config.etiquetaCm;
-      if (rawLength > config.largoMaximoCm + 0.01) fail(`El montaje supera ${config.largoMaximoCm} cm. Para más metros contáctanos.`);
-      const lengthCm = Math.max(config.largoMinimoCm, rawLength); // montaje mínimo 58 x 15 cm
+      if (rawLength > P.maxLen + 0.01) fail(`El montaje supera ${P.maxLen} cm. Para más metros contáctanos.`);
+      const lengthCm = Math.max(P.minLen, rawLength); // montaje mínimo
+      const usedWidth = Math.max(...boxes.map((b) => b.x + b.w));
 
       // Resolución efectiva de cada diseño a su medida (para avisar al taller).
       const pieces = [];
@@ -245,23 +318,34 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
 
       if (waiting >= MAX_WAITING) return res.status(503).json({ error: 'Estamos procesando otros pedidos. Intenta de nuevo en un minuto.' });
       const id = crypto.randomBytes(16).toString('hex');
-      const outPath = path.join(FILES_DIR, `${id}.png`);
       waiting++;
-      let dpi;
-      try { dpi = await exclusive(() => composeMontage(meta, files, boxes, lengthCm, label, labelY, outPath)); }
-      finally { waiting--; }
+      let dpi = null;
+      try {
+        await exclusive(async () => {
+          if (vinyl) await buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, path.join(FILES_DIR, id));
+          else dpi = await composeMontage(meta, files, boxes, lengthCm, label, labelY, path.join(FILES_DIR, `${id}.png`));
+        });
+      } finally { waiting--; }
 
-      const { price, detalle } = Pricing.quote(config, meta.style, lengthCm);
+      const { price, detalle } = vinyl
+        ? Pricing.quoteVinyl(config, meta.variant, usedWidth, lengthCm)
+        : Pricing.quote(config, meta.style, lengthCm);
       const usedCm2 = boxes.reduce((s, b) => s + b.w * b.h, 0);
       const orders = loadOrders();
       orders.unshift({
         id, name, phone, note,
-        style: meta.style,
+        product: vinyl ? 'vinilo' : 'dtf',
+        style: vinyl ? P.variant.nombre : meta.style,
+        files: vinyl ? ['pdf', 'svg'] : ['png'],
+        ...(vinyl ? {
+          capas: P.variant.capas.includes('elegir') ? [meta.capa] : P.variant.capas,
+          cutType: meta.cutType, offsetCm: meta.offsetCm, widthCm: Number(usedWidth.toFixed(2))
+        } : {}),
         gapCm: meta.gapCm,
         lengthCm: Number(lengthCm.toFixed(2)),
         pieces: boxes.length,
         items: pieces,
-        emptyPct: Math.round((1 - usedCm2 / (config.anchoRolloCm * Math.max(layoutLength, config.largoMinimoCm))) * 100),
+        emptyPct: Math.round((1 - usedCm2 / (P.W * Math.max(layoutLength, P.minLen))) * 100),
         price, detalle, dpi,
         acceptedAt: new Date().toISOString(),
         status: 'pendiente', createdAt: new Date().toISOString()
@@ -301,13 +385,15 @@ app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
   res.json(order);
 });
 
-app.get('/api/admin/orders/:id/download', requireAdmin, (req, res) => {
+const MIME = { png: 'image/png', pdf: 'application/pdf', svg: 'image/svg+xml' };
+app.get('/api/admin/orders/:id/download/:kind', requireAdmin, (req, res) => {
   const order = loadOrders().find((o) => o.id === req.params.id);
-  if (!order) return res.status(404).end();
-  const file = path.join(FILES_DIR, `${order.id}.png`);
-  const safe = order.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w-]+/g, '_');
-  const filename = `${order.id.slice(0, 8)}_${safe}_${order.style}_58x${order.lengthCm}cm.png`;
-  res.download(file, filename);
+  const kind = req.params.kind;
+  if (!order || !(order.files || ['png']).includes(kind)) return res.status(404).end();
+  const file = path.join(FILES_DIR, `${order.id}.${kind}`);
+  const safe = order.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w-]+/g, '_');
+  const tipo = order.product === 'vinilo' ? `vinilo_${order.widthCm}x${order.lengthCm}cm${kind === 'svg' ? '_corte' : ''}` : `${order.style}_58x${order.lengthCm}cm`;
+  res.download(file, `${order.id.slice(0, 8)}_${safe}_${tipo}.${kind}`, { headers: { 'Content-Type': MIME[kind] } });
 });
 
 // Errores en JSON legible, sin detalles internos.

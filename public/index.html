@@ -3,20 +3,35 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cotizador DTF UV - Smith Impresores</title>
+  <title>Cotizador DTF UV y Vinilo - Smith Impresores</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="contenedor">
   <header>
     <img src="logo.png" alt="Smith Impresores" class="logo">
-    <h1>Cotizador DTF UV</h1>
+    <h1>Cotizador DTF UV y Vinilo</h1>
     <p class="muted">Sube tus diseños, quítales el fondo de color, ajusta las medidas y mira cómo queda el montaje y cuánto cuesta.</p>
   </header>
 
-  <h2>1. Elige el estilo</h2>
+  <h2>1. ¿Qué quieres imprimir?</h2>
+  <div class="products">
+    <button type="button" class="product" data-product="dtf"><b>DTF UV</b><br><span>Calcomanía para superficies rígidas</span></button>
+    <button type="button" class="product" data-product="vinilo"><b>Vinilo con corte</b><br><span>Stickers y etiquetas cortados a la silueta</span></button>
+  </div>
+  <h2>Elige el tipo</h2>
   <div class="styles" id="styles"></div>
-  <p class="muted">Precios sobre 58 cm de ancho, IVA no incluido. Los valores mostrados corresponden a tu montaje actual.</p>
+  <p class="muted" id="styleNote"></p>
+  <div id="vinylOpts" class="hidden">
+    <p><b>Corte</b></p>
+    <div class="row">
+      <label class="check"><input type="radio" name="cutType" value="medio" checked> Medio corte (stickers en planilla)</label>
+      <label class="check"><input type="radio" name="cutType" value="total"> Corte total (piezas sueltas)</label>
+    </div>
+    <label for="offset">Margen de la línea de corte alrededor del diseño (mm)</label>
+    <input type="number" id="offset" step="0.5" inputmode="decimal">
+    <div class="msg err" id="offsetWarn"></div>
+  </div>
 
   <h2>2. Sube tus imágenes</h2>
   <label for="file" class="upload">📁 Toca aquí para elegir tus imágenes<br><span class="muted">PNG, JPG o WEBP · puedes elegir varias</span></label>
@@ -57,11 +72,11 @@
     <div class="grid">
       <div>
         <div class="montage"><canvas id="montage"></canvas></div>
-        <p class="muted">El montaje siempre es de 58 cm de ancho, mínimo 15 cm de largo y máximo 1 metro. Las imágenes se acomodan solas.</p>
+        <p class="muted" id="montageNote"></p>
         <label for="gap">Separación entre diseños (mm)</label>
         <input type="number" id="gap" min="5" max="20" step="1" value="5" inputmode="numeric">
         <div class="msg err" id="gapWarn"></div>
-        <p class="warn">Separación mínima 5 mm entre diseños. Si vas a recortar con tijera, te recomendamos aumentarla para un corte más cómodo. El espacio entre diseños también se imprime y hace parte del costo.</p>
+        <p class="warn" id="gapNote"></p>
       </div>
       <div>
         <div class="muted" id="stats"></div>
@@ -90,6 +105,7 @@
   </div>
 </div>
 <script src="pricing.js"></script>
+<script src="contour.js"></script>
 <script type="module" src="app.js"></script>
 </body>
 </html>

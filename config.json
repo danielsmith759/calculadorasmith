@@ -129,5 +129,89 @@
   ],
   "etiquetaCm": 0.8,
   "maxPiezas": 300,
-  "separacionMaxCm": 2
+  "separacionMaxCm": 2,
+  "vinilo": {
+    "anchoUtilCm": 60,
+    "margenCm": 1.5,
+    "separacionCm": 0.3,
+    "separacionMaxCm": 2,
+    "margenCorteCm": 0.2,
+    "margenCorteMinCm": 0.1,
+    "margenCorteMaxCm": 0.5,
+    "largoMinimoCm": 10,
+    "largoMaximoCm": 100,
+    "areaMinimaM2": 0.1,
+    "cortePorM2": 0,
+    "blancoReduccionMm": 0.1,
+    "spots": {
+      "corte": "CutContour",
+      "blanco": "White",
+      "brillo": "Gloss"
+    },
+    "variantes": [
+      {
+        "id": "eco",
+        "nombre": "Vinilo ecosolvente",
+        "maquina": "Epson SureColor · Onyx",
+        "precioM2": 35000,
+        "capas": [],
+        "puntos": [
+          "Impresión a color (CMYK)",
+          "Ideal para stickers, etiquetas y señalización",
+          "La opción más económica"
+        ]
+      },
+      {
+        "id": "uv",
+        "nombre": "Vinilo UV",
+        "maquina": "Mimaki UJV100-160 · RasterLink",
+        "precioM2": 45000,
+        "capas": [],
+        "puntos": [
+          "Impresión UV a color",
+          "Mayor resistencia al rayado y al agua",
+          "Secado inmediato"
+        ]
+      },
+      {
+        "id": "uv1",
+        "nombre": "Vinilo UV + blanco o brillo",
+        "maquina": "Mimaki UJV100-160 · RasterLink",
+        "precioM2": 68000,
+        "capas": [
+          "elegir"
+        ],
+        "puntos": [
+          "Blanco: colores opacos sobre vinilo transparente o metalizado",
+          "Brillo: barniz brillante sobre el diseño",
+          "Eliges una de las dos capas"
+        ]
+      },
+      {
+        "id": "uv2",
+        "nombre": "Vinilo UV + blanco + brillo",
+        "maquina": "Mimaki UJV100-160 · RasterLink",
+        "precioM2": 92000,
+        "capas": [
+          "blanco",
+          "brillo"
+        ],
+        "puntos": [
+          "Capa de blanco debajo y barniz brillante encima",
+          "Máximo impacto visual",
+          "Acabado premium"
+        ]
+      }
+    ],
+    "aclaraciones": [
+      "Cada diseño se corta con plotter siguiendo su silueta con el margen elegido. El corte tiene una tolerancia aproximada de ±1 mm.",
+      "Medio corte: se corta solo el vinilo y los stickers quedan en la planilla. Corte total: cada pieza sale suelta.",
+      "Diseños con partes muy delgadas o detalles menores a 2 mm pueden no cortarse bien.",
+      "El color en pantalla es una referencia. Puede variar ligeramente respecto al resultado impreso.",
+      "El precio se calcula por m² del montaje (ancho usado × largo), con un mínimo de 0,1 m². IVA no incluido.",
+      "Máximo 1 metro de largo por pedido en línea. Para más metros, contáctanos.",
+      "La cotización es un estimado. Queda sujeta a revisión del arte final por parte del taller.",
+      "Si el diseño requiere ajustes, montaje o corrección de arte, se cobra diseño adicional."
+    ]
+  }
 }

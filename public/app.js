@@ -14,7 +14,21 @@ let style = 'premium';
 let montage = null; // { boxes, lengthCm, over, labelY, invalid }
 let busy = false;
 let sent = false;
-let gapCm = null;   // separación entre diseños elegida por el cliente (mínimo config.separacionCm)
+let gapCm = null;   // separación entre diseños elegida por el cliente (mínimo según el producto)
+let product = 'dtf'; // 'dtf' o 'vinilo'
+let variant = 'eco'; // tipo de vinilo
+let capa = 'blanco'; // para "UV + blanco o brillo"
+let cutType = 'medio';
+let offsetCm = null; // margen de la línea de corte alrededor del diseño (vinilo)
+
+// Medidas y límites del producto elegido.
+function P() {
+  if (product === 'vinilo') {
+    const v = config.vinilo;
+    return { W: v.anchoUtilCm, gapMin: v.separacionCm, gapMax: v.separacionMaxCm, off: offsetCm, minLen: v.largoMinimoCm, maxLen: v.largoMaximoCm, terms: v.aclaraciones };
+  }
+  return { W: config.anchoRolloCm, gapMin: config.separacionCm, gapMax: config.separacionMaxCm, off: 0, minLen: config.largoMinimoCm, maxLen: config.largoMaximoCm, terms: config.aclaraciones };
+}
 
 const fmt = (n) => '$' + Math.round(n).toLocaleString('es-CO');
 const say = (text, cls = '') => { $('status').textContent = text; $('status').className = 'msg ' + cls; };
@@ -133,36 +147,46 @@ function relayout() {
   if (!ready.length) { montage = null; renderStyles(); updateSend(); return; }
 
   const total = pieceCount();
-  const tooWide = designs.find((d) => Math.min(d.w, d.h) > config.anchoRolloCm);
-  if (tooWide) invalidQuote(`Una imagen mide más de ${config.anchoRolloCm} cm por ambos lados. Reduce su medida.`);
+  const p = P();
+  const tooWide = designs.find((d) => Math.min(d.w, d.h) + 2 * p.off > p.W);
+  if (tooWide) invalidQuote(`Una imagen (con su margen de corte) mide más de ${p.W} cm por ambos lados. Reduce su medida.`);
   else if (total > config.maxPiezas) invalidQuote(`Máximo ${config.maxPiezas} piezas por pedido (tienes ${total}). Reduce las cantidades.`);
   else {
     const items = [];
-    designs.forEach((d, i) => { for (let k = 0; k < d.qty; k++) items.push({ d: i, w: d.w, h: d.h }); });
-    const boxes = packBest(items, config.anchoRolloCm, gapCm);
+    // En vinilo cada pieza ocupa el diseño más el margen de corte a cada lado.
+    designs.forEach((d, i) => { for (let k = 0; k < d.qty; k++) items.push({ d: i, w: d.w + 2 * p.off, h: d.h + 2 * p.off }); });
+    const boxes = packBest(items, p.W, gapCm);
     if (!boxes) invalidQuote('No se pudo acomodar el montaje. Revisa las medidas.');
     else {
       // Al final del montaje va una franja con el nombre del cliente.
       const layoutLength = Math.max(...boxes.map((b) => b.y + b.h));
       const labelY = layoutLength + gapCm;
       const rawLength = labelY + config.etiquetaCm;
-      const lengthCm = Math.max(config.largoMinimoCm, rawLength); // montaje mínimo 58 x 15 cm
-      const over = rawLength > config.largoMaximoCm + 1e-9;
-      montage = { boxes, lengthCm, over, labelY };
+      const lengthCm = Math.max(p.minLen, rawLength); // montaje mínimo
+      const over = rawLength > p.maxLen + 1e-9;
+      const usedWidth = Math.max(...boxes.map((b) => b.x + b.w));
+      montage = { boxes, lengthCm, over, labelY, usedWidth };
 
       const used = boxes.reduce((s, b) => s + b.w * b.h, 0);
-      const empty = Math.round((1 - used / (config.anchoRolloCm * lengthCm)) * 100);
-      const q = Pricing.quote(config, style, lengthCm);
-      $('stats').textContent = `${boxes.length} pieza(s) · montaje de ${config.anchoRolloCm} × ${shownLength(lengthCm)} cm` +
-        (rawLength < config.largoMinimoCm ? ` (montaje mínimo ${config.anchoRolloCm} × ${config.largoMinimoCm} cm)` : '');
+      let q, empty;
+      if (product === 'vinilo') {
+        q = Pricing.quoteVinyl(config, variant, usedWidth, lengthCm);
+        empty = Math.round((1 - used / (usedWidth * lengthCm)) * 100);
+        $('stats').textContent = `${boxes.length} pieza(s) · montaje de ${usedWidth.toFixed(1)} × ${lengthCm.toFixed(1)} cm (ancho usado × largo)`;
+      } else {
+        q = Pricing.quote(config, style, lengthCm);
+        empty = Math.round((1 - used / (p.W * lengthCm)) * 100);
+        $('stats').textContent = `${boxes.length} pieza(s) · montaje de ${p.W} × ${shownLength(lengthCm)} cm` +
+          (rawLength < p.minLen ? ` (montaje mínimo ${p.W} × ${p.minLen} cm)` : '');
+      }
       $('price').textContent = fmt(q.price);
       $('price').classList.toggle('off', over);
       $('detail').textContent = over ? '' : q.detalle;
       $('limit').textContent = over
-        ? `El montaje mide ${rawLength.toFixed(1)} cm y el máximo es ${config.largoMaximoCm} cm (1 metro). Reduce medidas o cantidades; para más metros contáctanos y se manejan por metros aparte.`
+        ? `El montaje mide ${rawLength.toFixed(1)} cm y el máximo es ${p.maxLen} cm (1 metro). Reduce medidas o cantidades; para más metros contáctanos y se manejan por metros aparte.`
         : '';
       $('waste').textContent = empty > 5 && !over
-        ? `Espacio libre en tu montaje: ${empty}%. Ese espacio se cobra porque consume film; puedes aprovecharlo agregando más imágenes sin pagar más.`
+        ? `Espacio libre en tu montaje: ${empty}%. Ese espacio se cobra porque consume material; puedes aprovecharlo agregando más imágenes sin pagar más.`
         : '';
       drawMontage();
     }
@@ -185,35 +209,99 @@ function drawLabel(ctx, w, h) {
   ctx.fillText(text, h * 0.3, h / 2);
 }
 
+// Contorno de corte de un diseño (se recalcula si cambia la imagen, la medida o el margen).
+function cutFor(d) {
+  const key = `${offsetCm}|${d.w.toFixed(2)}|${d.h.toFixed(2)}`;
+  if (d.cut && d.cut.key === key && d.cut.src === d.design) return d.cut.polys;
+  const ppc = Contour.contourPxPerCm(d.w, d.h);
+  const cw = Math.max(2, Math.round(d.w * ppc)), ch = Math.max(2, Math.round(d.h * ppc));
+  const c = document.createElement('canvas');
+  c.width = cw; c.height = ch;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(d.design, 0, 0, cw, ch);
+  const px = ctx.getImageData(0, 0, cw, ch).data;
+  const alpha = new Uint8Array(cw * ch);
+  for (let i = 0; i < alpha.length; i++) alpha[i] = px[i * 4 + 3];
+  const polys = Contour.cutContours(alpha, cw, ch, cw / d.w, offsetCm);
+  d.cut = { key, src: d.design, polys };
+  return polys;
+}
+
 function drawMontage() {
   const s = 8; // px por cm
   const c = $('montage');
-  c.width = Math.round(config.anchoRolloCm * s);
+  const p = P();
+  c.width = Math.round(p.W * s);
   c.height = Math.max(1, Math.round(montage.lengthCm * s));
   const ctx = c.getContext('2d');
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
   ctx.fillStyle = '#eee';
   for (let y = 0; y < c.height; y += 12) for (let x = (y / 12) % 2 ? 0 : 12; x < c.width; x += 24) ctx.fillRect(x, y, 12, 12);
   for (const b of montage.boxes) {
-    const d = designs[b.d].design;
+    const dz = designs[b.d];
+    // Caja del diseño dentro de la pieza (sin el margen de corte).
+    const x = b.x + p.off, y = b.y + p.off, w = b.w - 2 * p.off, h = b.h - 2 * p.off;
     ctx.save();
     if (b.rot) {
-      ctx.translate((b.x + b.w) * s, b.y * s); ctx.rotate(Math.PI / 2);
-      ctx.drawImage(d, 0, 0, b.h * s, b.w * s);
+      ctx.translate((x + w) * s, y * s); ctx.rotate(Math.PI / 2);
+      ctx.drawImage(dz.design, 0, 0, h * s, w * s);
     } else {
-      ctx.drawImage(d, b.x * s, b.y * s, b.w * s, b.h * s);
+      ctx.drawImage(dz.design, x * s, y * s, w * s, h * s);
     }
     ctx.restore();
+    if (product === 'vinilo') {
+      // Línea de corte: mismo cálculo que usa el taller.
+      ctx.save();
+      ctx.strokeStyle = '#e0007a'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 3]);
+      for (const poly of cutFor(dz)) {
+        ctx.beginPath();
+        poly.forEach(([px, py], i) => {
+          const [X, Y] = b.rot ? [x + (dz.h - py), y + px] : [x + px, y + py];
+          i ? ctx.lineTo(X * s, Y * s) : ctx.moveTo(X * s, Y * s);
+        });
+        ctx.closePath(); ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
   ctx.save();
   ctx.translate(0, montage.labelY * s);
   drawLabel(ctx, c.width, config.etiquetaCm * s);
+  if (product === 'vinilo') {
+    // Ancho que se cobra.
+    ctx.strokeStyle = '#06c'; ctx.setLineDash([6, 4]); ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, montage.usedWidth * s, c.height - 1);
+  }
   ctx.restore();
 }
 
 function renderStyles() {
   const L = montage && !montage.over ? montage.lengthCm : null;
   $('styles').innerHTML = '';
+  $('vinylOpts').classList.toggle('hidden', product !== 'vinilo');
+  $('styleNote').textContent = product === 'vinilo'
+    ? 'Precios por m² del montaje (ancho usado × largo), IVA no incluido. El valor mostrado corresponde a tu montaje actual.'
+    : 'Precios sobre 58 cm de ancho, IVA no incluido. Los valores mostrados corresponden a tu montaje actual.';
+  if (product === 'vinilo') {
+    for (const v of config.vinilo.variantes) {
+      const card = document.createElement('label');
+      card.className = 'style-card' + (v.id === variant ? ' sel' : '');
+      const price = L == null ? `${fmt(v.precioM2)}/m²` : fmt(Pricing.quoteVinyl(config, v.id, montage.usedWidth, L).price);
+      card.innerHTML = `<input type="radio" name="variant" ${v.id === variant ? 'checked' : ''}>
+        <b>${v.nombre}</b><h3>${v.maquina}</h3><ul>${v.puntos.map((t) => `<li>${t}</li>`).join('')}</ul><div class="p">${price}</div>`;
+      if (v.capas.includes('elegir') && v.id === variant) {
+        const pick = document.createElement('div');
+        pick.className = 'row';
+        pick.innerHTML = ['blanco', 'brillo'].map((k) =>
+          `<label class="check"><input type="radio" name="capa" value="${k}" ${capa === k ? 'checked' : ''}> ${k === 'blanco' ? 'Blanco' : 'Brillo'}</label>`).join('');
+        pick.querySelectorAll('input').forEach((r) => r.addEventListener('change', () => { capa = r.value; }));
+        card.appendChild(pick);
+      }
+      card.querySelector('input').addEventListener('change', () => { variant = v.id; relayout(); });
+      $('styles').appendChild(card);
+    }
+    return;
+  }
   for (const e of config.estilos) {
     const card = document.createElement('label');
     card.className = 'style-card' + (e.id === style ? ' sel' : '');
@@ -228,9 +316,10 @@ function renderStyles() {
 }
 
 function renderTerms() {
-  $('terms').innerHTML = '<ol>' + config.aclaraciones.map(() => '<li></li>').join('') + '</ol>' +
-    '<label><input type="checkbox" id="accept"> <b>He leído y acepto las ' + config.aclaraciones.length + ' aclaraciones.</b></label>';
-  $('terms').querySelectorAll('li').forEach((li, i) => { li.textContent = config.aclaraciones[i]; });
+  const terms = P().terms;
+  $('terms').innerHTML = '<ol>' + terms.map(() => '<li></li>').join('') + '</ol>' +
+    '<label><input type="checkbox" id="accept"> <b>He leído y acepto las ' + terms.length + ' aclaraciones.</b></label>';
+  $('terms').querySelectorAll('li').forEach((li, i) => { li.textContent = terms[i]; });
   $('accept').addEventListener('change', updateSend);
 }
 
@@ -372,13 +461,43 @@ for (const id of ['w', 'h', 'qty']) {
 // Separación entre diseños en mm: nunca menos del mínimo técnico.
 $('gap').addEventListener('input', () => {
   const mm = parseFloat($('gap').value);
-  const min = config.separacionCm * 10, max = config.separacionMaxCm * 10;
+  const min = P().gapMin * 10, max = P().gapMax * 10;
   if (!(mm >= min && mm <= max)) { $('gapWarn').textContent = `La separación debe estar entre ${min} y ${max} mm.`; return; }
   $('gapWarn').textContent = '';
   gapCm = mm / 10;
   relayout();
 });
-$('gap').addEventListener('change', () => { $('gap').value = gapCm * 10; $('gapWarn').textContent = ''; });
+$('gap').addEventListener('change', () => { $('gap').value = Math.round(gapCm * 100) / 10; $('gapWarn').textContent = ''; });
+$('offset').addEventListener('input', () => {
+  const mm = parseFloat($('offset').value);
+  const v = config.vinilo;
+  if (!(mm >= v.margenCorteMinCm * 10 && mm <= v.margenCorteMaxCm * 10)) {
+    $('offsetWarn').textContent = `El margen de corte debe estar entre ${v.margenCorteMinCm * 10} y ${v.margenCorteMaxCm * 10} mm.`;
+    return;
+  }
+  $('offsetWarn').textContent = '';
+  offsetCm = mm / 10;
+  relayout();
+});
+for (const r of document.querySelectorAll('input[name="cutType"]')) r.addEventListener('change', () => { cutType = r.value; });
+
+// Cambio de producto: ajusta separación, límites, precios y aclaraciones.
+function setProduct(p) {
+  product = p;
+  for (const b of document.querySelectorAll('[data-product]')) b.classList.toggle('sel', b.dataset.product === p);
+  const q = P();
+  gapCm = q.gapMin;
+  $('gap').min = q.gapMin * 10; $('gap').max = q.gapMax * 10; $('gap').value = q.gapMin * 10;
+  $('gapNote').textContent = p === 'vinilo'
+    ? `Separación mínima ${q.gapMin * 10} mm entre las líneas de corte. El espacio entre diseños también hace parte del costo.`
+    : `Separación mínima ${q.gapMin * 10} mm entre diseños. Si vas a recortar con tijera, te recomendamos aumentarla para un corte más cómodo. El espacio entre diseños también se imprime y hace parte del costo.`;
+  $('montageNote').textContent = p === 'vinilo'
+    ? `Ancho útil ${q.W} cm, máximo 1 metro de largo. Las imágenes se acomodan solas y la línea punteada rosada es el corte.`
+    : 'El montaje siempre es de 58 cm de ancho, mínimo 15 cm de largo y máximo 1 metro. Las imágenes se acomodan solas.';
+  renderTerms();
+  relayout();
+}
+for (const b of document.querySelectorAll('[data-product]')) b.addEventListener('click', () => { if (!busy && !sent) setProduct(b.dataset.product); });
 $('tol').addEventListener('input', () => { $('tolVal').textContent = $('tol').value; });
 
 $('file').addEventListener('change', async () => {
@@ -529,13 +648,15 @@ $('send').addEventListener('click', async () => {
       if (!blob) throw new Error('Tu navegador no pudo preparar una imagen. Intenta reducir su medida o usar otra imagen.');
       fd.append('images', blob, `diseno${i}.png`);
     }
-    const lc = document.createElement('canvas');
-    lc.width = Math.round((config.anchoRolloCm / 2.54) * config.dpi);
-    lc.height = Math.round((config.etiquetaCm / 2.54) * config.dpi);
-    drawLabel(lc.getContext('2d'), lc.width, lc.height);
-    fd.append('label', await new Promise((r) => lc.toBlob(r, 'image/png')), 'etiqueta.png');
+    if (product === 'dtf') {
+      const lc = document.createElement('canvas');
+      lc.width = Math.round((config.anchoRolloCm / 2.54) * config.dpi);
+      lc.height = Math.round((config.etiquetaCm / 2.54) * config.dpi);
+      drawLabel(lc.getContext('2d'), lc.width, lc.height);
+      fd.append('label', await new Promise((r) => lc.toBlob(r, 'image/png')), 'etiqueta.png');
+    }
     fd.append('meta', JSON.stringify({
-      style,
+      product, style, variant, capa, cutType, offsetCm,
       gapCm,
       designs: designs.map((d) => ({ wCm: d.w, hCm: d.h })),
       layout: montage.boxes.map((b) => ({ d: b.d, x: b.x, y: b.y, rot: b.rot })),
@@ -568,6 +689,7 @@ window.addEventListener('beforeunload', (e) => { if (designs.length && !sent) { 
 
 fetch('/api/config').then((r) => r.json()).then((c) => {
   config = c;
-  gapCm = c.separacionCm;
-  $('gap').min = c.separacionCm * 10; $('gap').max = c.separacionMaxCm * 10; $('gap').value = c.separacionCm * 10;
-  renderTerms(); renderStyles(); updateSend(); });
+  offsetCm = c.vinilo.margenCorteCm;
+  $('offset').min = c.vinilo.margenCorteMinCm * 10; $('offset').max = c.vinilo.margenCorteMaxCm * 10; $('offset').value = c.vinilo.margenCorteCm * 10;
+  setProduct('dtf');
+  updateSend(); });
