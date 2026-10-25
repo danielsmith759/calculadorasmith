@@ -74,6 +74,7 @@ app.set('trust proxy', 1);
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/healthz', (req, res) => res.send('ok'));
 app.get('/api/config', (req, res) => res.json(config));
 
 class Invalid extends Error {}
@@ -181,7 +182,7 @@ app.post('/api/admin/login', limit(10, 15 * 60 * 1000), (req, res) => {
   const user = String((req.body && req.body.user) || '').trim().toLowerCase();
   const pass = String((req.body && req.body.password) || '');
   if (!/^[a-z0-9]{3,30}$/.test(user) || !checkLogin(user, pass)) return res.status(401).json({ error: 'Usuario o clave incorrectos' });
-  res.setHeader('Set-Cookie', `admin=${issueToken(user)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_MS / 1000}`);
+  res.setHeader('Set-Cookie', `admin=${issueToken(user)}; HttpOnly; SameSite=Strict; Path=/;${req.secure ? ' Secure;' : ''} Max-Age=${SESSION_MS / 1000}`);
   res.json({ ok: true });
 });
 
@@ -208,6 +209,12 @@ app.get('/api/admin/orders/:id/download', requireAdmin, (req, res) => {
   const safe = order.name.replace(/[^\w-]+/g, '_');
   const filename = `${order.id.slice(0, 8)}_${safe}_${order.style}_58x${order.lengthCm}cm.png`;
   res.download(file, filename);
+});
+
+// Errores de subida (archivo muy grande, demasiados archivos) en JSON legible.
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) return res.status(400).json({ error: 'Archivo demasiado grande o demasiados archivos (máx. 25 MB por imagen).' });
+  next(err);
 });
 
 const port = process.env.PORT || 3000;

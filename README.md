@@ -21,3 +21,10 @@ ADMIN_PASSWORD=tu_clave SESSION_SECRET=algo_largo npm start   # http://localhost
 - La IA de quitar fondo (`@imgly/background-removal`) se descarga desde un CDN en el navegador del cliente.
 
 `public/calculadora2.html` es la calculadora original por metros.
+
+## Publicar para pruebas (Render, plan gratis)
+1. En https://render.com crea una cuenta e inicia sesión con GitHub.
+2. **New → Blueprint** (o **Web Service**), elige este repositorio y la rama `claude/dtf-uv-web-app-epmk4j`. Render lee `render.yaml`.
+3. Espera el despliegue y abre la URL `https://....onrender.com`. El panel está en `/admin.html`.
+- En el plan gratis el servicio se "duerme" tras unos minutos sin uso (la primera visita tarda ~1 min) y los pedidos se pierden al reiniciar: descarga cada PNG apenas llegue.
+- Para clientes reales, usa un plan con disco persistente (variable `DATA_DIR` apuntando al disco).
