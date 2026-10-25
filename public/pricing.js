@@ -3,9 +3,10 @@
   function quote(cfg, style, lengthCm) {
     const L = Math.max(cfg.largoMinimoCm, lengthCm);
     if (L < 100) {
-      // Sub-metro: precio fijo por rango (se redondea el largo hacia arriba al cm).
-      const cm = Math.ceil(L - 1e-9);
-      const r = cfg.rangos.find((x) => cm <= x.hasta) || cfg.rangos[cfg.rangos.length - 1];
+      // Sub-metro: precio fijo por rango (el largo se redondea hacia arriba al cm; 99,x cm sigue en el último rango).
+      const last = cfg.rangos[cfg.rangos.length - 1];
+      const cm = Math.min(last.hasta, Math.ceil(L - 1e-9));
+      const r = cfg.rangos.find((x) => cm <= x.hasta);
       return { price: r[style], detalle: `Rango ${r.desde}–${r.hasta} cm (precio fijo)` };
     }
     const m = L / 100;

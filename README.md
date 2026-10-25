@@ -13,18 +13,19 @@ Cotizador y recepción de archivos para **DTF UV** (Smith Impresores).
 ## Uso
 ```
 npm install
-ADMIN_PASSWORD=tu_clave SESSION_SECRET=algo_largo npm start   # http://localhost:3000
+# Windows (cmd):  set ADMIN_USERS=usuario1:clave1,usuario2:clave2&& npm start
+# Mac/Linux:      ADMIN_USERS="usuario1:clave1,usuario2:clave2" npm start
 ```
-- `config.json`: tablas de precios (`rangos`, `tramos`), estilos, aclaraciones, `anchoRolloCm`, `separacionCm` (espacio entre piezas), `dpi`. `public/pricing.js` calcula el precio tanto en el navegador como en el servidor.
-- Datos en `data/` (pedidos y PNGs); cambia la ruta con `DATA_DIR`. Haz copia de seguridad de esa carpeta.
-- Sin `ADMIN_PASSWORD` se genera una clave temporal que se imprime en consola.
-- La IA de quitar fondo (`@imgly/background-removal`) se descarga desde un CDN en el navegador del cliente.
-
-`public/calculadora2.html` es la calculadora original por metros.
+- Usuarios del panel `/admin.html`: variable `ADMIN_USERS` (recomendado) o, solo en local, un `usuarios.json` creado con `node scripts/usuario.js <usuario> <clave>`. Ese archivo **no se sube** al repositorio.
+- `config.json`: tablas de precios (`rangos`, `tramos`), estilos, aclaraciones, `anchoRolloCm`, `separacionCm`, `etiquetaCm`, `maxPiezas`, `dpi`. `public/pricing.js` calcula el precio en el navegador y en el servidor.
+- Datos en `data/` (pedidos y PNGs); cambia la ruta con `DATA_DIR`.
+- Límites: 30 imágenes y 300 piezas por pedido, 25 MB por imagen. El montaje se compone de a uno (cola) y con tope de 60 Mpx (`MAX_MONTAGE_PIXELS`): 1 m sale a ~260 ppp, montajes cortos a 300 ppp. Pico medido: ~400 MB con 3 pedidos de 1 m simultáneos.
+- La IA de quitar fondo (`@imgly/background-removal`, licencia **AGPL**) se descarga (~100 MB) desde un CDN en el navegador del cliente. Para uso comercial hay que revisar la licencia (ver notas).
 
 ## Publicar para pruebas (Render, plan gratis)
 1. En https://render.com crea una cuenta e inicia sesión con GitHub.
 2. **New → Blueprint** (o **Web Service**), elige este repositorio y la rama `claude/dtf-uv-web-app-epmk4j`. Render lee `render.yaml`.
-3. Espera el despliegue y abre la URL `https://....onrender.com`. El panel está en `/admin.html`.
+3. Cuando Render pida `ADMIN_USERS`, escribe `usuario1:clave1,usuario2:clave2` (claves nuevas y largas).
+4. Espera el despliegue y abre la URL `https://....onrender.com`. El panel está en `/admin.html`.
 - En el plan gratis el servicio se "duerme" tras unos minutos sin uso (la primera visita tarda ~1 min) y los pedidos se pierden al reiniciar: descarga cada PNG apenas llegue.
 - Para clientes reales, usa un plan con disco persistente (variable `DATA_DIR` apuntando al disco).

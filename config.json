@@ -127,5 +127,6 @@
     "Si el diseño requiere ajustes, montaje o corrección de arte, se cobra diseño adicional.",
     "Cada montaje se imprime con una franja de 0,8 cm con tu nombre y la fecha para identificar el trabajo; esa franja ocupa parte del largo del montaje."
   ],
-  "etiquetaCm": 0.8
+  "etiquetaCm": 0.8,
+  "maxPiezas": 300
 }

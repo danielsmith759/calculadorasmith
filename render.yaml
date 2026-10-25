@@ -7,5 +7,10 @@ services:
     startCommand: npm start
     healthCheckPath: /healthz
     envVars:
+      - key: NODE_ENV
+        value: production
       - key: SESSION_SECRET
         generateValue: true
+      # Usuarios del panel: "usuario:clave,usuario2:clave2". Render la pide al crear el servicio.
+      - key: ADMIN_USERS
+        sync: false

@@ -2,33 +2,42 @@ const $ = (id) => document.getElementById(id);
 const AI_MODULE = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/+esm';
 const ALPHA_MIN = 10;      // alfa mínimo para considerar un píxel como parte del diseño
 const WORK_MAX = 3000;     // lado máximo (px) para editar en el navegador
-const EXPORT_MAX = 9000;   // lado máximo (px) de cada archivo enviado
+const MAX_DESIGNS = 30;    // imágenes distintas por pedido (memoria del navegador)
+const MAX_QTY = 200;       // copias por imagen
+const DPI_WARN = 150;      // por debajo de esto la impresión puede verse pixelada
+const DPI_BAD = 72;
 const BIG = 100000;        // alto "infinito" del rollo al empaquetar (cm)
 
 let config;
-let designs = [];   // { original, working, design, ratio, w, h, qty }
+let designs = [];   // { file, working, design, offX, offY, thumb, ratio, w, h, qty, cleaned }
 let sel = -1;
 let style = 'premium';
-let montage = null; // { boxes, lengthCm }
+let montage = null; // { boxes, lengthCm, over, labelY, invalid }
+let busy = false;
+let sent = false;
+let aiModule = null;
+let aiAccepted = false;
 
 const fmt = (n) => '$' + Math.round(n).toLocaleString('es-CO');
 const say = (text, cls = '') => { $('status').textContent = text; $('status').className = 'msg ' + cls; };
 const cur = () => designs[sel];
+const pieceCount = () => designs.reduce((s, d) => s + d.qty, 0);
+const dpiOf = (d) => Math.round(d.design.width / (d.w / 2.54));
 
-const cloneCanvas = (src) => {
-  const c = document.createElement('canvas');
-  c.width = src.width; c.height = src.height;
-  c.getContext('2d').drawImage(src, 0, 0);
-  return c;
-};
-
-function canvasFromImage(img) {
-  const scale = Math.min(1, WORK_MAX / Math.max(img.naturalWidth, img.naturalHeight));
-  const c = document.createElement('canvas');
-  c.width = Math.round(img.naturalWidth * scale);
-  c.height = Math.round(img.naturalHeight * scale);
-  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-  return c;
+async function loadImage(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise((ok, no) => { img.onload = ok; img.onerror = no; img.src = url; });
+    const scale = Math.min(1, WORK_MAX / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    c.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 // Recorta al rectángulo con píxeles visibles: no se cobra el borde transparente.
@@ -48,16 +57,16 @@ function trim(src) {
   const c = document.createElement('canvas');
   c.width = maxX - minX + 1; c.height = maxY - minY + 1;
   c.getContext('2d').drawImage(src, minX, minY, c.width, c.height, 0, 0, c.width, c.height);
-  return c;
+  return { canvas: c, offX: minX, offY: minY };
 }
 
 // ---------- Empaquetado (MaxRects, con rotación 90°) ----------
 // Acomoda las piezas en el ancho del rollo buscando el menor largo total.
-function pack(items, widthCm, gap) {
+function pack(items, widthCm, gap, sortFn) {
   const BW = widthCm + gap;
   let free = [{ x: 0, y: 0, w: BW, h: BIG }];
   const out = [];
-  const order = items.map((it, i) => ({ ...it, i })).sort((a, b) => b.w * b.h - a.w * a.h);
+  const order = [...items].sort(sortFn);
   for (const it of order) {
     let best = null;
     for (const f of free) {
@@ -86,41 +95,81 @@ function pack(items, widthCm, gap) {
   return out;
 }
 
+// Prueba varios órdenes de acomodo y se queda con el montaje más corto.
+const SORTS = [
+  (a, b) => b.w * b.h - a.w * a.h,
+  (a, b) => Math.max(b.w, b.h) - Math.max(a.w, a.h),
+  (a, b) => b.h - a.h,
+  (a, b) => b.w - a.w
+];
+function packBest(items, widthCm, gap) {
+  let best = null, bestLen = Infinity;
+  for (const s of SORTS) {
+    const boxes = pack(items, widthCm, gap, s);
+    if (!boxes) continue;
+    const len = Math.max(...boxes.map((b) => b.y + b.h));
+    if (len < bestLen - 1e-9) { best = boxes; bestLen = len; }
+  }
+  return best;
+}
+
+// Largo mostrado al cliente: igual al que usa la tabla de precios (se redondea hacia arriba al cm).
+const shownLength = (L) => (L < 100 ? `${Math.min(99, Math.ceil(L - 1e-9))}` : L.toFixed(1));
+
 // ---------- Montaje y precio ----------
+function invalidQuote(reason) {
+  montage = null;
+  $('stats').textContent = '';
+  $('price').textContent = '—';
+  $('price').classList.add('off');
+  $('detail').textContent = '';
+  $('waste').textContent = '';
+  $('limit').textContent = reason;
+  const c = $('montage'); c.width = 1; c.height = 1;
+}
+
 function relayout() {
-  const ready = designs.filter((d) => d.design && d.w > 0 && d.h > 0);
-  $('quote').classList.toggle('hidden', !ready.length);
-  renderStyles();
-  if (!ready.length) { montage = null; return; }
-
-  const items = [];
-  designs.forEach((d, i) => { if (d.design && d.w > 0) for (let k = 0; k < d.qty; k++) items.push({ d: i, w: d.w, h: d.h }); });
-  const boxes = pack(items, config.anchoRolloCm, config.separacionCm);
-  if (!boxes) { montage = null; return; }
-  // Al final del montaje va una franja con el nombre del cliente.
-  const layoutLength = Math.max(...boxes.map((b) => b.y + b.h));
-  const labelY = layoutLength + config.separacionCm;
-  const rawLength = labelY + config.etiquetaCm;
-  const lengthCm = Math.max(config.largoMinimoCm, rawLength); // montaje mínimo 58 x 15 cm
-  const over = rawLength > config.largoMaximoCm + config.separacionCm + 0.01; // la separación entre piezas no cuenta
-  montage = { boxes, lengthCm, over, labelY };
-
-  const used = boxes.reduce((s, b) => s + b.w * b.h, 0);
-  const film = config.anchoRolloCm * lengthCm;
-  const empty = Math.round((1 - used / film) * 100);
-  const q = Pricing.quote(config, style, lengthCm);
-  $('stats').textContent = `${boxes.length} pieza(s) · montaje de ${config.anchoRolloCm} × ${lengthCm.toFixed(1)} cm` +
-    (rawLength < config.largoMinimoCm ? ` (montaje mínimo ${config.anchoRolloCm} × ${config.largoMinimoCm} cm)` : '');
-  $('price').textContent = fmt(q.price);
-  $('detail').textContent = q.detalle;
-  $('limit').textContent = over
-    ? `El montaje supera ${config.largoMaximoCm} cm (1 metro). Reduce medidas o cantidades; para más metros contáctanos y se manejan por metros aparte.`
-    : '';
-  $('waste').textContent = empty > 5
-    ? `El ${empty}% del montaje es espacio vacío y se cobra igual porque consume film. Agrega más imágenes o ajusta medidas para aprovecharlo.`
-    : '';
-  drawMontage();
   renderChips();
+  const ready = designs.filter((d) => d.design);
+  $('quote').classList.toggle('hidden', !ready.length);
+  if (!ready.length) { montage = null; renderStyles(); updateSend(); return; }
+
+  const total = pieceCount();
+  const tooWide = designs.find((d) => Math.min(d.w, d.h) > config.anchoRolloCm);
+  if (tooWide) invalidQuote(`Una imagen mide más de ${config.anchoRolloCm} cm por ambos lados. Reduce su medida.`);
+  else if (total > config.maxPiezas) invalidQuote(`Máximo ${config.maxPiezas} piezas por pedido (tienes ${total}). Reduce las cantidades.`);
+  else {
+    const items = [];
+    designs.forEach((d, i) => { for (let k = 0; k < d.qty; k++) items.push({ d: i, w: d.w, h: d.h }); });
+    const boxes = packBest(items, config.anchoRolloCm, config.separacionCm);
+    if (!boxes) invalidQuote('No se pudo acomodar el montaje. Revisa las medidas.');
+    else {
+      // Al final del montaje va una franja con el nombre del cliente.
+      const layoutLength = Math.max(...boxes.map((b) => b.y + b.h));
+      const labelY = layoutLength + config.separacionCm;
+      const rawLength = labelY + config.etiquetaCm;
+      const lengthCm = Math.max(config.largoMinimoCm, rawLength); // montaje mínimo 58 x 15 cm
+      const over = rawLength > config.largoMaximoCm + 1e-9;
+      montage = { boxes, lengthCm, over, labelY };
+
+      const used = boxes.reduce((s, b) => s + b.w * b.h, 0);
+      const empty = Math.round((1 - used / (config.anchoRolloCm * lengthCm)) * 100);
+      const q = Pricing.quote(config, style, lengthCm);
+      $('stats').textContent = `${boxes.length} pieza(s) · montaje de ${config.anchoRolloCm} × ${shownLength(lengthCm)} cm` +
+        (rawLength < config.largoMinimoCm ? ` (montaje mínimo ${config.anchoRolloCm} × ${config.largoMinimoCm} cm)` : '');
+      $('price').textContent = fmt(q.price);
+      $('price').classList.toggle('off', over);
+      $('detail').textContent = over ? '' : q.detalle;
+      $('limit').textContent = over
+        ? `El montaje mide ${rawLength.toFixed(1)} cm y el máximo es ${config.largoMaximoCm} cm (1 metro). Reduce medidas o cantidades; para más metros contáctanos y se manejan por metros aparte.`
+        : '';
+      $('waste').textContent = empty > 5 && !over
+        ? `Espacio libre en tu montaje: ${empty}%. Ese espacio se cobra porque consume film; puedes aprovecharlo agregando más imágenes sin pagar más.`
+        : '';
+      drawMontage();
+    }
+  }
+  renderStyles();
   updateSend();
 }
 
@@ -139,7 +188,7 @@ function drawLabel(ctx, w, h) {
 }
 
 function drawMontage() {
-  const s = 6; // px por cm
+  const s = 8; // px por cm
   const c = $('montage');
   c.width = Math.round(config.anchoRolloCm * s);
   c.height = Math.max(1, Math.round(montage.lengthCm * s));
@@ -165,12 +214,14 @@ function drawMontage() {
 }
 
 function renderStyles() {
-  const L = montage ? montage.lengthCm : null;
+  const L = montage && !montage.over ? montage.lengthCm : null;
   $('styles').innerHTML = '';
   for (const e of config.estilos) {
     const card = document.createElement('label');
     card.className = 'style-card' + (e.id === style ? ' sel' : '');
-    const price = L == null ? '' : fmt(Pricing.quote(config, e.id, L).price);
+    const price = L == null
+      ? `desde ${fmt(Pricing.quote(config, e.id, config.largoMinimoCm).price)}`
+      : fmt(Pricing.quote(config, e.id, L).price);
     card.innerHTML = `<input type="radio" name="style" value="${e.id}" ${e.id === style ? 'checked' : ''}>
       <b>${e.nombre}</b><h3>${e.resumen}</h3><ul>${e.puntos.map((p) => `<li>${p}</li>`).join('')}</ul><div class="p">${price}</div>`;
     card.querySelector('input').addEventListener('change', () => { style = e.id; relayout(); });
@@ -186,35 +237,51 @@ function renderTerms() {
 }
 
 function updateSend() {
-  const ok = montage && !montage.over && $('accept').checked;
-  $('send').disabled = !ok;
+  let hint = '';
+  if (sent) hint = '';
+  else if (!montage) hint = designs.length ? 'Corrige el montaje para poder enviar.' : 'Sube al menos una imagen.';
+  else if (montage.over) hint = 'El montaje supera 1 metro.';
+  else if (!$('accept').checked) hint = 'Marca la casilla de aceptación de las aclaraciones.';
+  else if (!$('name').value.trim() || !$('phone').value.trim()) hint = 'Escribe tu nombre y teléfono.';
+  $('send').disabled = !!hint || busy || sent;
+  $('sendHint').textContent = hint;
 }
 
 // ---------- Lista de imágenes y editor ----------
+function makeThumb(d) {
+  const t = document.createElement('canvas');
+  const k = Math.min(1, 64 / Math.max(d.design.width, d.design.height));
+  t.width = Math.max(1, Math.round(d.design.width * k)); t.height = Math.max(1, Math.round(d.design.height * k));
+  t.getContext('2d').drawImage(d.design, 0, 0, t.width, t.height);
+  d.thumb = t;
+}
+
 function renderChips() {
   $('chips').innerHTML = '';
   designs.forEach((d, i) => {
     const chip = document.createElement('div');
     chip.className = 'chip' + (i === sel ? ' sel' : '');
-    const t = document.createElement('canvas');
-    const src = d.design || d.working;
-    const k = Math.min(1, 64 / Math.max(src.width, src.height));
-    t.width = Math.max(1, Math.round(src.width * k)); t.height = Math.max(1, Math.round(src.height * k));
-    t.getContext('2d').drawImage(src, 0, 0, t.width, t.height);
-    chip.appendChild(t);
+    chip.title = `${d.w.toFixed(1)} × ${d.h.toFixed(1)} cm · ${d.qty} u.`;
+    chip.appendChild(d.thumb);
+    if (dpiOf(d) < DPI_WARN) {
+      const w = document.createElement('span');
+      w.className = 'badge'; w.textContent = '!'; w.title = 'Resolución baja';
+      chip.appendChild(w);
+    }
     const x = document.createElement('button');
     x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.setAttribute('aria-label', 'Quitar imagen');
-    x.addEventListener('click', (ev) => { ev.stopPropagation(); removeDesign(i); });
+    x.addEventListener('click', (ev) => { ev.stopPropagation(); if (!busy) removeDesign(i); });
     chip.appendChild(x);
-    chip.addEventListener('click', () => select(i));
+    chip.addEventListener('click', () => { if (!busy) select(i); });
     $('chips').appendChild(chip);
   });
+  $('fileHint').textContent = designs.length ? `${designs.length} imagen(es). Toca una para editarla.` : '';
 }
 
 function removeDesign(i) {
   designs.splice(i, 1);
-  sel = designs.length ? Math.min(sel, designs.length - 1) : -1;
-  if (sel === -1) $('editor').classList.add('hidden'); else select(sel);
+  if (!designs.length) { sel = -1; $('editor').classList.add('hidden'); }
+  else select(Math.min(sel, designs.length - 1));
   relayout();
 }
 
@@ -223,8 +290,10 @@ function select(i) {
   const d = cur();
   $('editor').classList.remove('hidden');
   say('');
-  $('w').value = d.w; $('h').value = d.h.toFixed(1); $('qty').value = d.qty;
+  $('sizeWarn').textContent = '';
+  $('w').value = d.w.toFixed(1); $('h').value = d.h.toFixed(1); $('qty').value = d.qty;
   drawPreview();
+  updateInfo();
   renderChips();
 }
 
@@ -234,145 +303,268 @@ function drawPreview() {
   $('preview').getContext('2d').drawImage(d.design, 0, 0);
 }
 
-// Recalcula el recorte de la imagen actual conservando el ancho elegido.
-function refreshDesign() {
+// Avisos de la imagen seleccionada: resolución y fondo sin quitar.
+function updateInfo() {
   const d = cur();
-  const t = trim(d.working);
-  if (!t) { say('La imagen quedó vacía, restaura el original.', 'err'); return; }
-  d.design = t;
-  d.ratio = t.height / t.width;
-  d.h = d.w * d.ratio;
-  $('h').value = d.h.toFixed(1);
-  drawPreview();
-  relayout();
+  const dpi = dpiOf(d);
+  $('dpiInfo').className = 'msg ' + (dpi < DPI_BAD ? 'err' : dpi < DPI_WARN ? 'warn' : 'ok');
+  $('dpiInfo').textContent = dpi < DPI_WARN
+    ? `Resolución baja (${dpi} ppp) para esta medida: puede verse pixelada. Usa una imagen más grande o reduce la medida.`
+    : `Resolución buena (${Math.min(dpi, 999)} ppp).`;
+  const c = d.design.getContext('2d');
+  const corners = [[0, 0], [d.design.width - 1, 0], [0, d.design.height - 1], [d.design.width - 1, d.design.height - 1]];
+  const opaque = corners.every(([x, y]) => c.getImageData(x, y, 1, 1).data[3] > 200);
+  $('bgWarn').textContent = opaque && !d.cleaned
+    ? 'Tu imagen parece tener fondo. Si no lo quitas, el fondo también se imprimirá (incluido el blanco).'
+    : '';
 }
 
-function checkSize() {
-  const d = cur();
-  const bad = Math.min(d.w, d.h) > config.anchoRolloCm;
-  $('sizeWarn').textContent = bad ? `Excede el ancho útil del rollo (${config.anchoRolloCm} cm). Reduce la medida.` : '';
-  return !bad;
+// Recalcula el recorte de la imagen actual conservando el ancho elegido.
+function refreshDesign(d = cur()) {
+  const t = trim(d.working);
+  if (!t) return false;
+  d.design = t.canvas; d.offX = t.offX; d.offY = t.offY;
+  d.ratio = t.canvas.height / t.canvas.width;
+  d.h = d.w * d.ratio;
+  makeThumb(d);
+  if (d === cur()) {
+    $('h').value = d.h.toFixed(1);
+    drawPreview();
+    updateInfo();
+  }
+  relayout();
+  return true;
+}
+
+function setBusy(on) {
+  busy = on;
+  for (const id of ['btnAI', 'btnColor', 'btnReset', 'file']) $(id).disabled = on;
+  updateSend();
 }
 
 $('w').addEventListener('input', () => {
   const w = parseFloat($('w').value);
-  if (!(w > 0)) return;
+  if (!(w >= 0.5)) { $('sizeWarn').textContent = 'Escribe un ancho de al menos 0,5 cm.'; return; }
   cur().w = w; cur().h = w * cur().ratio; $('h').value = cur().h.toFixed(1);
-  if (checkSize()) relayout();
+  $('sizeWarn').textContent = '';
+  updateInfo(); relayout();
 });
 $('h').addEventListener('input', () => {
   const h = parseFloat($('h').value);
-  if (!(h > 0)) return;
+  if (!(h >= 0.5)) { $('sizeWarn').textContent = 'Escribe un alto de al menos 0,5 cm.'; return; }
   cur().h = h; cur().w = h / cur().ratio; $('w').value = cur().w.toFixed(1);
-  if (checkSize()) relayout();
+  $('sizeWarn').textContent = '';
+  updateInfo(); relayout();
 });
 $('qty').addEventListener('input', () => {
-  cur().qty = Math.min(200, Math.max(1, parseInt($('qty').value, 10) || 1));
+  const q = parseInt($('qty').value, 10);
+  if (!(q >= 1)) { $('sizeWarn').textContent = 'La cantidad mínima es 1.'; return; }
+  cur().qty = Math.min(MAX_QTY, q);
+  $('sizeWarn').textContent = q > MAX_QTY ? `Máximo ${MAX_QTY} copias por imagen.` : '';
   relayout();
 });
+// Al salir del campo se muestra el valor real usado.
+for (const id of ['w', 'h', 'qty']) {
+  $(id).addEventListener('change', () => {
+    if (!cur()) return;
+    $('w').value = cur().w.toFixed(1); $('h').value = cur().h.toFixed(1); $('qty').value = cur().qty;
+    $('sizeWarn').textContent = '';
+  });
+}
 $('tol').addEventListener('input', () => { $('tolVal').textContent = $('tol').value; });
 
 $('file').addEventListener('change', async () => {
   const files = [...$('file').files];
   $('file').value = '';
-  for (const f of files) {
-    const img = new Image();
-    const url = URL.createObjectURL(f);
-    try {
-      await new Promise((ok, no) => { img.onload = ok; img.onerror = no; img.src = url; });
-    } catch { alert(`No se pudo leer "${f.name}".`); continue; }
-    URL.revokeObjectURL(url);
-    const original = canvasFromImage(img);
-    designs.push({ original, working: cloneCanvas(original), design: null, ratio: 1, w: 10, h: 10, qty: 1 });
-    sel = designs.length - 1;
-    refreshDesign();
+  setBusy(true);
+  try {
+    for (const f of files) {
+      if (designs.length >= MAX_DESIGNS) { alert(`Máximo ${MAX_DESIGNS} imágenes distintas por pedido.`); break; }
+      let working;
+      try { working = await loadImage(f); } catch { alert(`No se pudo leer "${f.name}". Usa PNG, JPG o WEBP.`); continue; }
+      const d = { file: f, working, design: null, ratio: 1, w: 10, h: 10, qty: 1, cleaned: false };
+      const t = trim(working);
+      if (!t) { alert(`"${f.name}" está vacía (totalmente transparente).`); continue; }
+      // Medida inicial: el lado más largo en 10 cm.
+      const ratio = t.canvas.height / t.canvas.width;
+      d.w = ratio > 1 ? 10 / ratio : 10;
+      designs.push(d);
+      sel = designs.length - 1;
+      refreshDesign(d);
+    }
+  } finally {
+    setBusy(false);
   }
-  if (designs.length) select(sel);
+  if (sel >= 0) select(sel);
 });
 
-$('btnReset').addEventListener('click', () => {
-  cur().working = cloneCanvas(cur().original);
-  say('');
-  refreshDesign();
+$('btnReset').addEventListener('click', async () => {
+  const d = cur();
+  setBusy(true);
+  try {
+    d.working = await loadImage(d.file);
+    d.cleaned = false;
+    d.pick = d.lastBg = null;
+    $('pickSwatch').classList.add('hidden');
+    say('');
+    refreshDesign(d);
+  } finally { setBusy(false); }
 });
 
-// Quita el color de fondo conectado a los bordes (sirve sin conexión y con fondos planos).
+// Clic en la vista previa: elige el color de fondo a quitar.
+$('preview').addEventListener('click', (ev) => {
+  const d = cur();
+  const r = $('preview').getBoundingClientRect();
+  const x = Math.floor(((ev.clientX - r.left) / r.width) * d.design.width);
+  const y = Math.floor(((ev.clientY - r.top) / r.height) * d.design.height);
+  const p = d.design.getContext('2d').getImageData(x, y, 1, 1).data;
+  if (p[3] < 128) { say('Ese punto ya es transparente. Toca el color de fondo que quieres quitar.'); return; }
+  d.pick = [p[0], p[1], p[2]];
+  $('pickSwatch').style.background = `rgb(${p[0]},${p[1]},${p[2]})`;
+  $('pickSwatch').classList.remove('hidden');
+  say('Color elegido. Ahora pulsa "Quitar color de fondo".', 'ok');
+});
+
+// Quita el color de fondo: desde los bordes (o en toda la imagen), con borde suave y sin halo.
 $('btnColor').addEventListener('click', () => {
-  const work = cur().working;
+  const d = cur();
+  const work = d.working;
   const { width, height } = work;
   const ctx = work.getContext('2d');
   const img = ctx.getImageData(0, 0, width, height);
-  const d = img.data;
-  const px = (x, y) => (y * width + x) * 4;
-  const corners = [px(0, 0), px(width - 1, 0), px(0, height - 1), px(width - 1, height - 1)];
-  const bg = [0, 1, 2].map((k) => corners.reduce((s, i) => s + d[i + k], 0) / 4);
-  const tol = parseInt($('tol').value, 10);
-  const near = (i) => d[i + 3] > 0 && Math.hypot(d[i] - bg[0], d[i + 1] - bg[1], d[i + 2] - bg[2]) <= tol;
-  const seen = new Uint8Array(width * height);
-  const stack = [];
-  const push = (x, y) => { const p = y * width + x; if (!seen[p] && near(p * 4)) { seen[p] = 1; stack.push(p); } };
-  for (let x = 0; x < width; x++) { push(x, 0); push(x, height - 1); }
-  for (let y = 0; y < height; y++) { push(0, y); push(width - 1, y); }
-  while (stack.length) {
-    const p = stack.pop();
-    d[p * 4 + 3] = 0;
-    const x = p % width, y = (p - x) / width;
-    if (x > 0) push(x - 1, y);
-    if (x < width - 1) push(x + 1, y);
-    if (y > 0) push(x, y - 1);
-    if (y < height - 1) push(x, y + 1);
+  const px = img.data;
+  let bg = d.pick || d.lastBg; // el último color quitado sirve para repetir con "toda la imagen"
+  if (!bg) {
+    // Promedio de las esquinas que no son transparentes.
+    const corners = [0, width - 1, (height - 1) * width, height * width - 1].filter((p) => px[p * 4 + 3] > 200);
+    if (!corners.length) { say('No se detectó fondo en las esquinas. Toca el color del fondo en la imagen para elegirlo.', 'err'); return; }
+    bg = [0, 1, 2].map((k) => corners.reduce((s, p) => s + px[p * 4 + k], 0) / corners.length);
   }
+  const tol = parseInt($('tol').value, 10);
+  const ramp = tol * 0.6 + 10; // franja de transición suave alrededor del diseño
+  const dist = (p) => Math.hypot(px[p * 4] - bg[0], px[p * 4 + 1] - bg[1], px[p * 4 + 2] - bg[2]);
+  const isBg = (p) => px[p * 4 + 3] > 0 && dist(p) <= tol;
+  const removed = new Uint8Array(width * height);
+  let count = 0;
+
+  if ($('everywhere').checked) {
+    for (let p = 0; p < width * height; p++) if (isBg(p)) { removed[p] = 1; count++; }
+  } else {
+    const stack = [];
+    const push = (x, y) => { const p = y * width + x; if (!removed[p] && isBg(p)) { removed[p] = 1; count++; stack.push(p); } };
+    for (let x = 0; x < width; x++) { push(x, 0); push(x, height - 1); }
+    for (let y = 0; y < height; y++) { push(0, y); push(width - 1, y); }
+    while (stack.length) {
+      const p = stack.pop();
+      const x = p % width, y = (p - x) / width;
+      if (x > 0) push(x - 1, y);
+      if (x < width - 1) push(x + 1, y);
+      if (y > 0) push(x, y - 1);
+      if (y < height - 1) push(x, y + 1);
+    }
+  }
+  for (let p = 0; p < width * height; p++) if (removed[p]) px[p * 4 + 3] = 0;
+  // Borde: los píxeles vecinos al fondo quitado se vuelven semitransparentes y se les retira el color del fondo (evita halo blanco).
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const p = y * width + x;
+      if (removed[p] || px[p * 4 + 3] === 0) continue;
+      const near = (x > 0 && removed[p - 1]) || (x < width - 1 && removed[p + 1]) || (y > 0 && removed[p - width]) || (y < height - 1 && removed[p + width]);
+      if (!near) continue;
+      const a = Math.min(1, Math.max(0, (dist(p) - tol) / ramp));
+      if (a >= 1) continue;
+      const i = p * 4;
+      if (a < 0.15) { px[i + 3] = 0; continue; }
+      for (let k = 0; k < 3; k++) px[i + k] = Math.max(0, Math.min(255, (px[i + k] - (1 - a) * bg[k]) / a));
+      px[i + 3] = Math.round(px[i + 3] * a);
+    }
+  }
+  if (!count) { say('No se encontró fondo de ese color. Sube la tolerancia o toca el fondo para elegir el color.', 'err'); return; }
   ctx.putImageData(img, 0, 0);
-  say('Fondo de color removido.', 'ok');
-  refreshDesign();
+  d.cleaned = true;
+  d.lastBg = bg;
+  if (!refreshDesign(d)) {
+    say('Se borró toda la imagen. Pulsa "Restaurar original" y baja la tolerancia.', 'err');
+    return;
+  }
+  say(`Fondo quitado (${Math.round((count / (width * height)) * 100)}% de la imagen). Si quedan restos, sube la tolerancia y repite.`, 'ok');
 });
 
 // IA en el navegador: la imagen no sale del equipo hasta que se envía el pedido.
 $('btnAI').addEventListener('click', async () => {
-  $('btnAI').disabled = true;
   const d = cur();
-  say('Cargando modelo de IA (la primera vez tarda)…');
+  if (!aiAccepted) {
+    if (!confirm('La IA descarga unos 100 MB la primera vez (mejor con wifi) y puede tardar 20–60 segundos por imagen. ¿Continuar?')) return;
+    aiAccepted = true;
+  }
+  setBusy(true);
+  say('Cargando la IA…');
   try {
-    const { removeBackground } = await import(AI_MODULE);
-    const blob = await new Promise((r) => d.original.toBlob(r, 'image/png'));
-    const out = await removeBackground(blob, {
-      progress: (key, c, total) => { if (total) say(`Procesando ${key}: ${Math.round((c / total) * 100)}%`); }
+    if (!aiModule) aiModule = await import(AI_MODULE);
+    const blob = await new Promise((r) => d.working.toBlob(r, 'image/png'));
+    const out = await aiModule.removeBackground(blob, {
+      model: 'isnet_fp16',
+      output: { format: 'image/png' },
+      progress: (key, c, total) => {
+        if (total && key.startsWith('fetch')) say(`Descargando la IA: ${Math.round((c / total) * 100)}%`);
+        else say('Quitando el fondo… (puede tardar)');
+      }
     });
+    // Se usa solo la máscara de la IA (firme en los extremos) sobre los colores y transparencia actuales.
     const bmp = await createImageBitmap(out);
-    d.working = document.createElement('canvas');
-    d.working.width = bmp.width; d.working.height = bmp.height;
-    d.working.getContext('2d').drawImage(bmp, 0, 0);
-    if (cur() === d) { say('Fondo removido con IA.', 'ok'); refreshDesign(); }
+    const m = document.createElement('canvas');
+    m.width = d.working.width; m.height = d.working.height;
+    m.getContext('2d').drawImage(bmp, 0, 0, m.width, m.height);
+    const mask = m.getContext('2d').getImageData(0, 0, m.width, m.height).data;
+    const ctx = d.working.getContext('2d');
+    const img = ctx.getImageData(0, 0, m.width, m.height);
+    for (let i = 3; i < mask.length; i += 4) {
+      const a = mask[i] >= 200 ? 255 : mask[i] <= 30 ? 0 : mask[i];
+      img.data[i] = Math.round((img.data[i] * a) / 255);
+    }
+    ctx.putImageData(img, 0, 0);
+    d.cleaned = true;
+    if (!refreshDesign(d)) say('La IA no encontró un objeto principal. Pulsa "Restaurar original" y prueba "Quitar color de fondo".', 'err');
+    else if (cur() === d) say('Fondo quitado con IA. Revisa los bordes; para logos planos suele ir mejor "Quitar color de fondo".', 'ok');
   } catch (e) {
     console.error(e);
-    say('No se pudo usar la IA. Prueba "Quitar color de fondo".', 'err');
+    aiModule = null;
+    say('No se pudo usar la IA (revisa tu conexión). Prueba "Quitar color de fondo".', 'err');
   } finally {
-    $('btnAI').disabled = false;
+    setBusy(false);
   }
 });
+
+// Exporta cada diseño a su resolución real (el servidor lo lleva a la medida de impresión).
+function exportDesign(d) {
+  const needed = Math.round((Math.max(d.w, d.h) / 2.54) * config.dpi);
+  const scale = Math.min(1, needed / Math.max(d.design.width, d.design.height));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(d.design.width * scale));
+  c.height = Math.max(1, Math.round(d.design.height * scale));
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(d.design, 0, 0, c.width, c.height);
+  // Píxeles casi transparentes fuera: evitan "polvo" de tinta blanca.
+  const img = ctx.getImageData(0, 0, c.width, c.height);
+  for (let i = 3; i < img.data.length; i += 4) if (img.data[i] <= ALPHA_MIN) img.data[i] = 0;
+  ctx.putImageData(img, 0, 0);
+  return new Promise((r) => c.toBlob(r, 'image/png'));
+}
 
 $('send').addEventListener('click', async () => {
   const out = $('result');
   out.className = 'msg';
-  if (!montage) return;
-  if (!$('name').value.trim() || !$('phone').value.trim()) { out.className = 'msg err'; out.textContent = 'Escribe tu nombre y teléfono.'; return; }
-  if (designs.some((d) => Math.min(d.w, d.h) > config.anchoRolloCm)) { out.className = 'msg err'; out.textContent = 'Una imagen excede el ancho del rollo.'; return; }
-
+  if (!montage || montage.over || sent) return;
+  setBusy(true);
   $('send').disabled = true;
-  out.textContent = 'Enviando…';
+  out.textContent = 'Preparando y enviando tus archivos… no cierres la página.';
   try {
     const fd = new FormData();
     for (let i = 0; i < designs.length; i++) {
-      const d = designs[i];
-      // Cada diseño se exporta a resolución de impresión para su medida.
-      const scale = Math.min(1, EXPORT_MAX / Math.max(d.w, d.h) / (config.dpi / 2.54));
-      const c = document.createElement('canvas');
-      c.width = Math.max(1, Math.round((d.w / 2.54) * config.dpi * scale));
-      c.height = Math.max(1, Math.round((d.h / 2.54) * config.dpi * scale));
-      const ctx = c.getContext('2d');
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(d.design, 0, 0, c.width, c.height);
-      fd.append('images', await new Promise((r) => c.toBlob(r, 'image/png')), `diseno${i}.png`);
+      const blob = await exportDesign(designs[i]);
+      if (!blob) throw new Error('Tu navegador no pudo preparar una imagen. Intenta reducir su medida o usar otra imagen.');
+      fd.append('images', blob, `diseno${i}.png`);
     }
     const lc = document.createElement('canvas');
     lc.width = Math.round((config.anchoRolloCm / 2.54) * config.dpi);
@@ -386,19 +578,28 @@ $('send').addEventListener('click', async () => {
       name: $('name').value, phone: $('phone').value, note: $('note').value,
       accepted: true
     }));
-    const res = await fetch('/api/orders', { method: 'POST', body: fd });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error al enviar');
-    out.className = 'msg ok';
-    out.textContent = `¡Pedido recibido! Referencia ${data.ref} · Total estimado ${fmt(data.price)} + IVA. Te contactaremos pronto.`;
+    let res;
+    try { res = await fetch('/api/orders', { method: 'POST', body: fd }); }
+    catch { throw new Error('No hay conexión con el servidor. Revisa tu internet e intenta de nuevo.'); }
+    let data = {};
+    try { data = await res.json(); } catch {}
+    if (!res.ok) throw new Error(data.error || `El servidor no pudo recibir el pedido (código ${res.status}). Intenta de nuevo en un momento.`);
+    sent = true;
+    $('send').classList.add('hidden');
+    $('again').classList.remove('hidden');
+    out.className = 'msg ok big';
+    out.textContent = `¡Pedido recibido! Referencia ${data.ref} · Total estimado ${fmt(data.price)} + IVA. Te contactaremos pronto por WhatsApp.`;
+    out.scrollIntoView({ behavior: 'smooth', block: 'center' });
   } catch (e) {
     out.className = 'msg err';
     out.textContent = e.message;
   } finally {
-    updateSend();
+    setBusy(false);
   }
 });
 
-$('name').addEventListener('input', () => { if (montage) drawMontage(); });
+$('again').addEventListener('click', () => location.reload());
+for (const id of ['name', 'phone']) $(id).addEventListener('input', () => { if (montage) drawMontage(); updateSend(); });
+window.addEventListener('beforeunload', (e) => { if (designs.length && !sent) { e.preventDefault(); e.returnValue = ''; } });
 
-fetch('/api/config').then((r) => r.json()).then((c) => { config = c; renderTerms(); renderStyles(); });
+fetch('/api/config').then((r) => r.json()).then((c) => { config = c; renderTerms(); renderStyles(); updateSend(); });

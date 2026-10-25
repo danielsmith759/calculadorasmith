@@ -19,32 +19,37 @@
   <p class="muted">Precios sobre 58 cm de ancho, IVA no incluido. Los valores mostrados corresponden a tu montaje actual.</p>
 
   <h2>2. Sube tus imágenes</h2>
-  <input type="file" id="file" accept="image/*" multiple>
+  <label for="file" class="upload">📁 Toca aquí para elegir tus imágenes<br><span class="muted">PNG, JPG o WEBP · puedes elegir varias</span></label>
+  <input type="file" id="file" accept="image/png,image/jpeg,image/webp" multiple class="visually-hidden">
   <div class="chips" id="chips"></div>
+  <div class="muted" id="fileHint"></div>
 
   <div id="editor" class="hidden">
     <div class="grid">
       <div>
         <div class="preview"><canvas id="preview"></canvas></div>
-        <p class="muted">El cuadriculado indica zonas transparentes (no se imprimen).</p>
+        <p class="muted">El cuadriculado indica zonas transparentes (no se imprimen). Toca el fondo en la imagen para elegir el color a quitar. <span id="pickSwatch" class="swatch hidden"></span></p>
+        <div class="msg warn" id="bgWarn"></div>
         <div class="row">
           <button id="btnAI" type="button">Quitar fondo (IA)</button>
           <button id="btnColor" type="button" class="sec">Quitar color de fondo</button>
         </div>
         <label for="tol">Tolerancia del color de fondo: <span id="tolVal">30</span></label>
         <input type="range" id="tol" min="5" max="120" value="30">
+        <label class="check"><input type="checkbox" id="everywhere"> Quitar ese color en toda la imagen (también dentro de letras y figuras)</label>
         <button id="btnReset" type="button" class="sec">Restaurar original</button>
         <div id="status" class="msg muted"></div>
       </div>
       <div>
-        <label>Medida de esta imagen (cm) — se mantiene la proporción</label>
+        <p><b>Medida de esta imagen</b> <span class="muted">— se mantiene la proporción</span></p>
         <div class="row">
-          <input type="number" id="w" min="1" step="0.1" placeholder="Ancho cm" aria-label="Ancho en cm">
-          <input type="number" id="h" min="1" step="0.1" placeholder="Alto cm" aria-label="Alto en cm">
+          <div><label for="w">Ancho (cm)</label><input type="number" id="w" min="0.5" step="0.1" inputmode="decimal"></div>
+          <div><label for="h">Alto (cm)</label><input type="number" id="h" min="0.5" step="0.1" inputmode="decimal"></div>
         </div>
         <label for="qty">Cantidad de esta imagen</label>
         <input type="number" id="qty" min="1" max="200" value="1">
         <div class="msg err" id="sizeWarn"></div>
+        <div class="msg" id="dpiInfo"></div>
       </div>
     </div>
   </div>
@@ -70,10 +75,15 @@
     <div class="terms" id="terms"></div>
 
     <h2>5. Tus datos</h2>
-    <input id="name" placeholder="Nombre" autocomplete="name">
-    <input id="phone" placeholder="WhatsApp / teléfono" autocomplete="tel" inputmode="tel">
-    <textarea id="note" rows="2" placeholder="Observaciones (opcional)"></textarea>
+    <label for="name">Nombre (se imprime en la franja del montaje)</label>
+    <input id="name" autocomplete="name" maxlength="100">
+    <label for="phone">WhatsApp / teléfono</label>
+    <input id="phone" autocomplete="tel" inputmode="tel" maxlength="40">
+    <label for="note">Observaciones (opcional)</label>
+    <textarea id="note" rows="2" maxlength="500"></textarea>
     <button id="send" type="button" disabled>Enviar pedido</button>
+    <div class="muted" id="sendHint"></div>
+    <button id="again" type="button" class="sec hidden">Hacer otro pedido</button>
     <div id="result" class="msg"></div>
   </div>
 </div>

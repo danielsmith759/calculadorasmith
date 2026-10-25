@@ -42,7 +42,8 @@ async function load() {
       <td>${new Date(o.createdAt).toLocaleString('es-CO')}</td>
       <td>${esc(o.name)}<br><span class="muted">${esc(o.phone)}${o.note ? ' · ' + esc(o.note) : ''}</span></td>
       <td>${esc(o.style)}</td>
-      <td>58 × ${o.lengthCm} cm<br><span class="muted">${o.pieces} pzas · ${o.emptyPct}% vacío</span></td>
+      <td>58 × ${o.lengthCm} cm<br><span class="muted">${o.pieces} pzas · ${o.emptyPct}% vacío</span>${(o.items || []).map((p) =>
+        `<br><span class="${p.dpi < 150 ? 'err' : 'muted'}">${p.qty}× ${p.wCm}×${p.hCm} cm · ${p.dpi} ppp${p.dpi < 150 ? ' (baja)' : ''}</span>`).join('')}</td>
       <td>${fmt(o.price)}<br><span class="muted">${esc(o.detalle)}</span></td>
       <td><button data-id="${esc(o.id)}" data-status="${o.status === 'pendiente' ? 'impreso' : 'pendiente'}">${esc(o.status)}</button></td>
       <td><a href="/api/admin/orders/${esc(o.id)}/download">Descargar PNG</a></td>
