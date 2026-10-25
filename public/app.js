@@ -1,5 +1,4 @@
 const $ = (id) => document.getElementById(id);
-const AI_MODULE = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/+esm';
 const ALPHA_MIN = 10;      // alfa mínimo para considerar un píxel como parte del diseño
 const WORK_MAX = 3000;     // lado máximo (px) para editar en el navegador
 const MAX_DESIGNS = 30;    // imágenes distintas por pedido (memoria del navegador)
@@ -15,8 +14,6 @@ let style = 'premium';
 let montage = null; // { boxes, lengthCm, over, labelY, invalid }
 let busy = false;
 let sent = false;
-let aiModule = null;
-let aiAccepted = false;
 let gapCm = null;   // separación entre diseños elegida por el cliente (mínimo config.separacionCm)
 
 const fmt = (n) => '$' + Math.round(n).toLocaleString('es-CO');
@@ -339,7 +336,7 @@ function refreshDesign(d = cur()) {
 
 function setBusy(on) {
   busy = on;
-  for (const id of ['btnAI', 'btnColor', 'btnReset', 'file']) $(id).disabled = on;
+  for (const id of ['btnColor', 'btnReset', 'file']) $(id).disabled = on;
   updateSend();
 }
 
@@ -499,51 +496,6 @@ $('btnColor').addEventListener('click', () => {
     return;
   }
   say(`Fondo quitado (${Math.round((count / (width * height)) * 100)}% de la imagen). Si quedan restos, sube la tolerancia y repite.`, 'ok');
-});
-
-// IA en el navegador: la imagen no sale del equipo hasta que se envía el pedido.
-$('btnAI').addEventListener('click', async () => {
-  const d = cur();
-  if (!aiAccepted) {
-    if (!confirm('La IA descarga unos 100 MB la primera vez (mejor con wifi) y puede tardar 20–60 segundos por imagen. ¿Continuar?')) return;
-    aiAccepted = true;
-  }
-  setBusy(true);
-  say('Cargando la IA…');
-  try {
-    if (!aiModule) aiModule = await import(AI_MODULE);
-    const blob = await new Promise((r) => d.working.toBlob(r, 'image/png'));
-    const out = await aiModule.removeBackground(blob, {
-      model: 'isnet_fp16',
-      output: { format: 'image/png' },
-      progress: (key, c, total) => {
-        if (total && key.startsWith('fetch')) say(`Descargando la IA: ${Math.round((c / total) * 100)}%`);
-        else say('Quitando el fondo… (puede tardar)');
-      }
-    });
-    // Se usa solo la máscara de la IA (firme en los extremos) sobre los colores y transparencia actuales.
-    const bmp = await createImageBitmap(out);
-    const m = document.createElement('canvas');
-    m.width = d.working.width; m.height = d.working.height;
-    m.getContext('2d').drawImage(bmp, 0, 0, m.width, m.height);
-    const mask = m.getContext('2d').getImageData(0, 0, m.width, m.height).data;
-    const ctx = d.working.getContext('2d');
-    const img = ctx.getImageData(0, 0, m.width, m.height);
-    for (let i = 3; i < mask.length; i += 4) {
-      const a = mask[i] >= 200 ? 255 : mask[i] <= 30 ? 0 : mask[i];
-      img.data[i] = Math.round((img.data[i] * a) / 255);
-    }
-    ctx.putImageData(img, 0, 0);
-    d.cleaned = true;
-    if (!refreshDesign(d)) say('La IA no encontró un objeto principal. Pulsa "Restaurar original" y prueba "Quitar color de fondo".', 'err');
-    else if (cur() === d) say('Fondo quitado con IA. Revisa los bordes; para logos planos suele ir mejor "Quitar color de fondo".', 'ok');
-  } catch (e) {
-    console.error(e);
-    aiModule = null;
-    say('No se pudo usar la IA (revisa tu conexión). Prueba "Quitar color de fondo".', 'err');
-  } finally {
-    setBusy(false);
-  }
 });
 
 // Exporta cada diseño a su resolución real (el servidor lo lleva a la medida de impresión).

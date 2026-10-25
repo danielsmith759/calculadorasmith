@@ -3,7 +3,7 @@
 Cotizador y recepción de archivos para **DTF UV** (Smith Impresores).
 
 ## Cómo funciona
-1. El cliente elige el estilo (Premium o Relief 2.5D) y sube una o varias imágenes; les quita el fondo (IA en el navegador o por color) y define medida y cantidad de cada una.
+1. El cliente elige el estilo (Premium o Relief 2.5D) y sube una o varias imágenes; les quita el fondo de color (sin servicios externos ni costo) y define medida y cantidad de cada una.
 2. El sistema acomoda todas las piezas solas (con rotación de 90° si ahorra largo) en el ancho útil de 58 cm y mide el **largo total del montaje**.
 3. Montaje siempre de 58 cm de ancho, **mínimo 58 × 15 cm** (sin importar el tamaño de las imágenes) y **máximo 1 m** por pedido en línea; más metros se manejan aparte. Precio: precio fijo por rango de largo (un montaje de exactamente 1 m se cobra a precio por metro). El espacio vacío del montaje se cobra igual y se le avisa al cliente. IVA no incluido.
 4. El cliente debe marcar las 6 aclaraciones para poder enviar. El servidor valida el montaje, **recalcula el precio** y arma un único PNG transparente de 58 cm × largo (300 DPI; se reduce solo si el montaje es muy largo para no agotar memoria).
@@ -20,7 +20,7 @@ npm install
 - `config.json`: tablas de precios (`rangos`, `tramos`), estilos, aclaraciones, `anchoRolloCm`, `separacionCm` (mínimo, 5 mm) y `separacionMaxCm`, `etiquetaCm`, `maxPiezas`, `dpi`. `public/pricing.js` calcula el precio en el navegador y en el servidor.
 - Datos en `data/` (pedidos y PNGs); cambia la ruta con `DATA_DIR`.
 - Límites: 30 imágenes y 300 piezas por pedido, 25 MB por imagen. El montaje se compone de a uno (cola) y con tope de 60 Mpx (`MAX_MONTAGE_PIXELS`): 1 m sale a ~260 ppp, montajes cortos a 300 ppp. Pico medido: ~400 MB con 3 pedidos de 1 m simultáneos.
-- La IA de quitar fondo (`@imgly/background-removal`, licencia **AGPL**) se descarga (~100 MB) desde un CDN en el navegador del cliente. Para uso comercial hay que revisar la licencia (ver notas).
+- Quitar fondo: por color (clic para elegir el color, tolerancia, opción "en toda la imagen", bordes suaves sin halo). No usa IA ni servicios externos, así que es gratis y sin licencias de terceros. Funciona mejor con logos y diseños de fondo liso; para fotos, el cliente debe enviar la imagen ya sin fondo (PNG transparente).
 
 ## Publicar para pruebas (Render, plan gratis)
 1. En https://render.com crea una cuenta e inicia sesión con GitHub.

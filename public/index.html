@@ -11,7 +11,7 @@
   <header>
     <img src="logo.png" alt="Smith Impresores" class="logo">
     <h1>Cotizador DTF UV</h1>
-    <p class="muted">Sube tus diseños, quítales el fondo, ajusta las medidas y mira cómo queda el montaje y cuánto cuesta.</p>
+    <p class="muted">Sube tus diseños, quítales el fondo de color, ajusta las medidas y mira cómo queda el montaje y cuánto cuesta.</p>
   </header>
 
   <h2>1. Elige el estilo</h2>
@@ -30,10 +30,8 @@
         <div class="preview"><canvas id="preview"></canvas></div>
         <p class="muted">El cuadriculado indica zonas transparentes (no se imprimen). Toca el fondo en la imagen para elegir el color a quitar. <span id="pickSwatch" class="swatch hidden"></span></p>
         <div class="msg warn" id="bgWarn"></div>
-        <div class="row">
-          <button id="btnAI" type="button">Quitar fondo (IA)</button>
-          <button id="btnColor" type="button" class="sec">Quitar color de fondo</button>
-        </div>
+        <button id="btnColor" type="button">Quitar color de fondo</button>
+        <p class="muted">Funciona mejor con logos y diseños de fondo liso. Si tu imagen es una foto, súbela ya sin fondo (PNG transparente).</p>
         <label for="tol">Tolerancia del color de fondo: <span id="tolVal">30</span></label>
         <input type="range" id="tol" min="5" max="120" value="30">
         <label class="check"><input type="checkbox" id="everywhere"> Quitar ese color en toda la imagen (también dentro de letras y figuras)</label>
