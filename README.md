@@ -14,7 +14,7 @@ Cotizador y recepción de archivos para **DTF UV** (Smith Impresores).
 - El cliente elige **Vinilo con corte** y el tipo: ecosolvente con semicorte (Epson SureColor · Onyx, $50.000/m²) o UV (Mimaki UJV100-160 · RasterLink, $45.000/m²) con blanco y/o brillo ($68.000 / $92.000). Precio por m² del montaje (ancho usado × largo), mínimo `areaMinimaM2`.
 - Área de impresión: **95 × 95 cm** a color o con brillo; **145 × 55 cm** (ancho × largo) con base blanca (`areaColor` / `areaBlanco`).
 - Separación mínima **4 mm** entre cortes; los diseños **rectangulares** (llenan su recuadro) llevan corte recto y van **unidos**, compartiendo la línea de corte.
-- **Piezas pequeñas** (lado mayor < 3 cm, `piezaPequenaCm`): tarifa `precioPequenoM2` (ecosolvente $80.000, UV $90.000) aplicada en proporción al área de esas piezas.
+- **Piezas pequeñas** (lado mayor < 3 cm, `piezaPequenaCm`): tarifa `precioPequenoM2` (ecosolvente $80.000, UV $90.000, UV + blanco o brillo $98.000, UV + blanco + brillo $122.000) aplicada en proporción al área de esas piezas.
 - La **guía de corte** se calcula sola desde la silueta de cada diseño (`public/contour.js`) con el margen elegido (1–5 mm). El cliente la ve en rosado punteado.
 - El taller descarga:
   - **PDF de producción** (página = ancho útil + `margenCm` a cada lado para las marcas de registro): imagen, capa `White` (un poco reducida, `blancoReduccionMm`), capa `Gloss` y línea `CutContour`, como colores directos con sobreimpresión. Nombres configurables en `vinilo.spots` (verificar los que espera RasterLink/Onyx).
