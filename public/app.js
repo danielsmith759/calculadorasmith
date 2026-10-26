@@ -172,7 +172,8 @@ function relayout() {
   const total = pieceCount();
   const p = P();
   const fits = (d) => {
-    const a = d.w + 2 * p.off, b = d.h + 2 * p.off;
+    const o = product === 'vinilo' && isRect(d) ? 0 : p.off;
+    const a = d.w + 2 * o, b = d.h + 2 * o;
     return (a <= p.W && b <= p.maxLen) || (b <= p.W && a <= p.maxLen);
   };
   const tooWide = designs.find((d) => !fits(d));
@@ -181,7 +182,11 @@ function relayout() {
   else {
     const items = [];
     // En vinilo cada pieza ocupa el diseño más el margen de corte a cada lado.
-    designs.forEach((d, i) => { for (let k = 0; k < d.qty; k++) items.push({ d: i, w: d.w + 2 * p.off, h: d.h + 2 * p.off }); });
+    // Los rectangulares van sin margen: se cortan justo en el borde, unidos entre sí.
+    designs.forEach((d, i) => {
+      const o = product === 'vinilo' && isRect(d) ? 0 : p.off;
+      for (let k = 0; k < d.qty; k++) items.push({ d: i, w: d.w + 2 * o, h: d.h + 2 * o });
+    });
     let boxes;
     if (product === 'vinilo') {
       // Los diseños rectangulares van unidos (corte recto compartido); el resto, con separación.
@@ -280,7 +285,8 @@ function drawMontage() {
   for (const b of montage.boxes) {
     const dz = designs[b.d];
     // Caja del diseño dentro de la pieza (sin el margen de corte).
-    const x = b.x + p.off, y = b.y + p.off, w = b.w - 2 * p.off, h = b.h - 2 * p.off;
+    const o = product === 'vinilo' && isRect(dz) ? 0 : p.off;
+    const x = b.x + o, y = b.y + o, w = b.w - 2 * o, h = b.h - 2 * o;
     ctx.save();
     if (b.rot) {
       ctx.translate((x + w) * s, y * s); ctx.rotate(Math.PI / 2);
@@ -293,7 +299,7 @@ function drawMontage() {
       // Línea de corte: mismo cálculo que usa el taller.
       ctx.save();
       ctx.strokeStyle = '#e0007a'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 3]);
-      for (const poly of (isRect(dz) ? Contour.rectContour(dz.w, dz.h, p.off) : cutFor(dz))) {
+      for (const poly of (isRect(dz) ? Contour.rectContour(dz.w, dz.h, 0) : cutFor(dz))) {
         ctx.beginPath();
         poly.forEach(([px, py], i) => {
           const [X, Y] = b.rot ? [x + (dz.h - py), y + px] : [x + px, y + py];

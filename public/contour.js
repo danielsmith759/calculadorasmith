@@ -162,7 +162,33 @@
   }
   const rectContour = (wCm, hCm, off) => [[[-off, -off], [wCm + off, -off], [wCm + off, hCm + off], [-off, hCm + off]]];
 
-  const api = { cutContours, contourPxPerCm, distanceSq, coverage, rectContour };
+  // Cortes rectos de piezas rectangulares unidas: une los bordes compartidos en una sola línea
+  // (la plotter pasa una vez). rects: [[x0, y0, x1, y1]] en cm. Devuelve segmentos abiertos [[x,y],[x,y]].
+  function gridLines(rects) {
+    const key = (v) => Math.round(v * 1000) / 1000;
+    const h = new Map(), v = new Map();
+    const push = (m, k, a, b) => { if (!m.has(k)) m.set(k, []); m.get(k).push([Math.min(a, b), Math.max(a, b)]); };
+    for (const [x0, y0, x1, y1] of rects) {
+      push(h, key(y0), x0, x1); push(h, key(y1), x0, x1);
+      push(v, key(x0), y0, y1); push(v, key(x1), y0, y1);
+    }
+    const merge = (list) => {
+      list.sort((a, b) => a[0] - b[0]);
+      const out = [];
+      for (const s of list) {
+        const last = out[out.length - 1];
+        if (last && s[0] <= last[1] + 1e-3) last[1] = Math.max(last[1], s[1]);
+        else out.push([s[0], s[1]]);
+      }
+      return out;
+    };
+    const lines = [];
+    for (const [y, list] of h) for (const [a, b] of merge(list)) lines.push([[a, y], [b, y]]);
+    for (const [x, list] of v) for (const [a, b] of merge(list)) lines.push([[x, a], [x, b]]);
+    return lines;
+  }
+
+  const api = { cutContours, contourPxPerCm, distanceSq, coverage, rectContour, gridLines };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Contour = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

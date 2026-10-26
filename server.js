@@ -159,14 +159,15 @@ function productParams(meta) {
   return { W: config.anchoRolloCm, gapMin: config.separacionCm, gapMax: config.separacionMaxCm, off: 0, minLen: config.largoMinimoCm, maxLen: config.largoMaximoCm };
 }
 
-// Las cajas incluyen el margen de corte (off) alrededor de cada diseño.
+// Las cajas incluyen el margen de corte (off) alrededor de cada diseño; los rectangulares van sin margen.
 function checkLayout(meta, fileCount, P, rects = []) {
+  const offOf = (i) => (rects[i] ? 0 : P.off);
   const W = P.W, G = meta.gapCm, EPS = 0.01;
   if (!Number.isFinite(G) || G < P.gapMin - 1e-9 || G > P.gapMax + 1e-9) fail('Separación entre diseños inválida.');
   if (!Array.isArray(meta.designs) || meta.designs.length !== fileCount || !fileCount) fail('Imágenes inválidas.');
-  for (const d of meta.designs) {
+  for (const [i, d] of meta.designs.entries()) {
     if (!d || !Number.isFinite(d.wCm) || !Number.isFinite(d.hCm) || Math.min(d.wCm, d.hCm) < 0.5) fail('Medida de diseño inválida.');
-    const a = d.wCm + 2 * P.off, b = d.hCm + 2 * P.off;
+    const a = d.wCm + 2 * offOf(i), b = d.hCm + 2 * offOf(i);
     if (!((a <= W + EPS && b <= P.maxLen + EPS) || (b <= W + EPS && a <= P.maxLen + EPS))) fail('Un diseño no cabe en el área de impresión.');
   }
   if (!Array.isArray(meta.layout) || !meta.layout.length) fail('Montaje inválido.');
@@ -175,7 +176,7 @@ function checkLayout(meta, fileCount, P, rects = []) {
     if (!it || !Number.isInteger(it.d) || it.d < 0 || it.d >= meta.designs.length || typeof it.rot !== 'boolean' ||
       !Number.isFinite(it.x) || !Number.isFinite(it.y)) fail('Montaje inválido.');
     const d = meta.designs[it.d];
-    const w = (it.rot ? d.hCm : d.wCm) + 2 * P.off, h = (it.rot ? d.wCm : d.hCm) + 2 * P.off;
+    const w = (it.rot ? d.hCm : d.wCm) + 2 * offOf(it.d), h = (it.rot ? d.wCm : d.hCm) + 2 * offOf(it.d);
     if (it.x < -EPS || it.y < -EPS || it.x + w > W + EPS) fail('Hay diseños fuera del ancho del rollo.');
     return { x: it.x, y: it.y, w, h, d: it.d, rot: it.rot };
   });
@@ -272,15 +273,19 @@ async function buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, outBase
     }
     images.push({ width: info.width, height: info.height, rgba: data, white, gloss: capas.includes('brillo') ? solid : null });
     const { alpha, cw, ch, rect } = prep[i];
-    contours.push(rect ? Contour.rectContour(d.wCm, d.hCm, P.off) : Contour.cutContours(alpha, cw, ch, cw / d.wCm, P.off));
+    contours.push(rect ? null : Contour.cutContours(alpha, cw, ch, cw / d.wCm, P.off));
   }
-  const pieces = [], cuts = [];
+  const pieces = [], cuts = [], rectBoxes = [];
   for (const b of boxes) {
     const d = meta.designs[b.d];
-    const x = M + b.x + P.off, y = M + b.y + P.off;
+    const off = prep[b.d].rect ? 0 : P.off;
+    const x = M + b.x + off, y = M + b.y + off;
     pieces.push({ img: b.d, x, y, w: d.wCm, h: d.hCm, rot: b.rot });
-    for (const poly of contours[b.d]) cuts.push(poly.map(([px, py]) => mapPoint(px, py, x, y, d.wCm, d.hCm, b.rot)));
+    // Rectangulares: corte recto justo en el borde, compartido con la pieza vecina.
+    if (prep[b.d].rect) rectBoxes.push([x, y, x + b.w, y + b.h]);
+    else for (const poly of contours[b.d]) cuts.push(poly.map(([px, py]) => mapPoint(px, py, x, y, d.wCm, d.hCm, b.rot)));
   }
+  for (const line of Contour.gridLines(rectBoxes)) { line.open = true; cuts.push(line); }
   const pageW = P.W + 2 * M, pageH = lengthCm + 2 * M;
   const text = `${name.toUpperCase()}  ·  ${new Date().toLocaleDateString('es-CO')}  ·  ${P.variant.nombre}`;
   const pdf = buildPdf({
