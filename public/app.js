@@ -21,11 +21,34 @@ let capa = 'blanco'; // para "UV + blanco o brillo"
 let cutType = 'medio';
 let offsetCm = null; // margen de la línea de corte alrededor del diseño (vinilo)
 
+function hasWhite() {
+  const v = config.vinilo.variantes.find((x) => x.id === variant);
+  return v.capas.includes('blanco') || (v.capas.includes('elegir') && capa === 'blanco');
+}
+
+// Diseño rectangular (llena su recuadro): corte recto y puede ir unido a otros rectangulares.
+function isRect(d) {
+  if (d.rectSrc === d.design) return d.rect;
+  const c = document.createElement('canvas');
+  const k = Math.min(1, 200 / Math.max(d.design.width, d.design.height));
+  c.width = Math.max(1, Math.round(d.design.width * k)); c.height = Math.max(1, Math.round(d.design.height * k));
+  const ctx = c.getContext('2d');
+  ctx.drawImage(d.design, 0, 0, c.width, c.height);
+  const px = ctx.getImageData(0, 0, c.width, c.height).data;
+  const alpha = new Uint8Array(c.width * c.height);
+  for (let i = 0; i < alpha.length; i++) alpha[i] = px[i * 4 + 3];
+  d.rect = Contour.coverage(alpha, c.width, c.height) >= config.vinilo.rectanguloCobertura;
+  d.rectSrc = d.design;
+  return d.rect;
+}
+
 // Medidas y límites del producto elegido.
 function P() {
   if (product === 'vinilo') {
     const v = config.vinilo;
-    return { W: v.anchoUtilCm, gapMin: v.separacionCm, gapMax: v.separacionMaxCm, off: offsetCm, minLen: v.largoMinimoCm, maxLen: v.largoMaximoCm, terms: v.aclaraciones };
+    // Con base blanca el montaje es 145 x 55 cm; a color o con brillo, 95 x 95 cm.
+    const area = hasWhite() ? v.areaBlanco : v.areaColor;
+    return { W: area.anchoCm, gapMin: v.separacionCm, gapMax: v.separacionMaxCm, off: offsetCm, minLen: v.largoMinimoCm, maxLen: area.largoMaxCm, terms: v.aclaraciones };
   }
   return { W: config.anchoRolloCm, gapMin: config.separacionCm, gapMax: config.separacionMaxCm, off: 0, minLen: config.largoMinimoCm, maxLen: config.largoMaximoCm, terms: config.aclaraciones };
 }
@@ -148,14 +171,29 @@ function relayout() {
 
   const total = pieceCount();
   const p = P();
-  const tooWide = designs.find((d) => Math.min(d.w, d.h) + 2 * p.off > p.W);
-  if (tooWide) invalidQuote(`Una imagen (con su margen de corte) mide más de ${p.W} cm por ambos lados. Reduce su medida.`);
+  const fits = (d) => {
+    const a = d.w + 2 * p.off, b = d.h + 2 * p.off;
+    return (a <= p.W && b <= p.maxLen) || (b <= p.W && a <= p.maxLen);
+  };
+  const tooWide = designs.find((d) => !fits(d));
+  if (tooWide) invalidQuote(`Una imagen no cabe en el área de impresión (${p.W} × ${p.maxLen} cm). Reduce su medida.`);
   else if (total > config.maxPiezas) invalidQuote(`Máximo ${config.maxPiezas} piezas por pedido (tienes ${total}). Reduce las cantidades.`);
   else {
     const items = [];
     // En vinilo cada pieza ocupa el diseño más el margen de corte a cada lado.
     designs.forEach((d, i) => { for (let k = 0; k < d.qty; k++) items.push({ d: i, w: d.w + 2 * p.off, h: d.h + 2 * p.off }); });
-    const boxes = packBest(items, p.W, gapCm);
+    let boxes;
+    if (product === 'vinilo') {
+      // Los diseños rectangulares van unidos (corte recto compartido); el resto, con separación.
+      const rect = items.filter((it) => isRect(designs[it.d])), other = items.filter((it) => !isRect(designs[it.d]));
+      const br = rect.length ? packBest(rect, p.W, 0) : [];
+      const bo = other.length ? packBest(other, p.W, gapCm) : [];
+      if (!br || !bo) boxes = null;
+      else {
+        const y0 = br.length ? Math.max(...br.map((b) => b.y + b.h)) + gapCm : 0;
+        boxes = br.concat(bo.map((b) => ({ ...b, y: b.y + y0 })));
+      }
+    } else boxes = packBest(items, p.W, gapCm);
     if (!boxes) invalidQuote('No se pudo acomodar el montaje. Revisa las medidas.');
     else {
       // Al final del montaje va una franja con el nombre del cliente.
@@ -170,7 +208,9 @@ function relayout() {
       const used = boxes.reduce((s, b) => s + b.w * b.h, 0);
       let q, empty;
       if (product === 'vinilo') {
-        q = Pricing.quoteVinyl(config, variant, usedWidth, lengthCm);
+        const small = boxes.filter((b) => Math.max(designs[b.d].w, designs[b.d].h) < config.vinilo.piezaPequenaCm);
+        const share = small.reduce((t, b) => t + b.w * b.h, 0) / used;
+        q = Pricing.quoteVinyl(config, variant, usedWidth, lengthCm, share);
         empty = Math.round((1 - used / (usedWidth * lengthCm)) * 100);
         $('stats').textContent = `${boxes.length} pieza(s) · montaje de ${usedWidth.toFixed(1)} × ${lengthCm.toFixed(1)} cm (ancho usado × largo)`;
       } else {
@@ -183,7 +223,7 @@ function relayout() {
       $('price').classList.toggle('off', over);
       $('detail').textContent = over ? '' : q.detalle;
       $('limit').textContent = over
-        ? `El montaje mide ${rawLength.toFixed(1)} cm y el máximo es ${p.maxLen} cm (1 metro). Reduce medidas o cantidades; para más metros contáctanos y se manejan por metros aparte.`
+        ? `El montaje mide ${rawLength.toFixed(1)} cm y el máximo es ${p.maxLen} cm. Reduce medidas o cantidades; para más metros contáctanos y se manejan por metros aparte.`
         : '';
       $('waste').textContent = empty > 5 && !over
         ? `Espacio libre en tu montaje: ${empty}%. Ese espacio se cobra porque consume material; puedes aprovecharlo agregando más imágenes sin pagar más.`
@@ -253,7 +293,7 @@ function drawMontage() {
       // Línea de corte: mismo cálculo que usa el taller.
       ctx.save();
       ctx.strokeStyle = '#e0007a'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 3]);
-      for (const poly of cutFor(dz)) {
+      for (const poly of (isRect(dz) ? Contour.rectContour(dz.w, dz.h, p.off) : cutFor(dz))) {
         ctx.beginPath();
         poly.forEach(([px, py], i) => {
           const [X, Y] = b.rot ? [x + (dz.h - py), y + px] : [x + px, y + py];
@@ -294,10 +334,10 @@ function renderStyles() {
         pick.className = 'row';
         pick.innerHTML = ['blanco', 'brillo'].map((k) =>
           `<label class="check"><input type="radio" name="capa" value="${k}" ${capa === k ? 'checked' : ''}> ${k === 'blanco' ? 'Blanco' : 'Brillo'}</label>`).join('');
-        pick.querySelectorAll('input').forEach((r) => r.addEventListener('change', () => { capa = r.value; }));
+        pick.querySelectorAll('input').forEach((r) => r.addEventListener('change', () => { capa = r.value; setProduct('vinilo'); }));
         card.appendChild(pick);
       }
-      card.querySelector('input').addEventListener('change', () => { variant = v.id; relayout(); });
+      card.querySelector('input').addEventListener('change', () => { variant = v.id; setProduct('vinilo'); });
       $('styles').appendChild(card);
     }
     return;
@@ -483,18 +523,21 @@ for (const r of document.querySelectorAll('input[name="cutType"]')) r.addEventLi
 
 // Cambio de producto: ajusta separación, límites, precios y aclaraciones.
 function setProduct(p) {
+  const changed = product !== p || gapCm == null;
   product = p;
   for (const b of document.querySelectorAll('[data-product]')) b.classList.toggle('sel', b.dataset.product === p);
   const q = P();
-  gapCm = q.gapMin;
-  $('gap').min = q.gapMin * 10; $('gap').max = q.gapMax * 10; $('gap').value = q.gapMin * 10;
+  if (changed) {
+    gapCm = q.gapMin;
+    $('gap').min = q.gapMin * 10; $('gap').max = q.gapMax * 10; $('gap').value = q.gapMin * 10;
+  }
   $('gapNote').textContent = p === 'vinilo'
-    ? `Separación mínima ${q.gapMin * 10} mm entre las líneas de corte. El espacio entre diseños también hace parte del costo.`
+    ? `Separación mínima ${q.gapMin * 10} mm entre las líneas de corte (los diseños rectangulares van unidos con corte recto). El espacio entre diseños también hace parte del costo.`
     : `Separación mínima ${q.gapMin * 10} mm entre diseños. Si vas a recortar con tijera, te recomendamos aumentarla para un corte más cómodo. El espacio entre diseños también se imprime y hace parte del costo.`;
   $('montageNote').textContent = p === 'vinilo'
-    ? `Ancho útil ${q.W} cm, máximo 1 metro de largo. Las imágenes se acomodan solas y la línea punteada rosada es el corte.`
+    ? `Área de impresión ${q.W} × ${q.maxLen} cm${hasWhite() ? ' (con base blanca)' : ''}. Las imágenes se acomodan solas y la línea punteada rosada es el corte.`
     : 'El montaje siempre es de 58 cm de ancho, mínimo 15 cm de largo y máximo 1 metro. Las imágenes se acomodan solas.';
-  renderTerms();
+  if (changed) renderTerms();
   relayout();
 }
 for (const b of document.querySelectorAll('[data-product]')) b.addEventListener('click', () => { if (!busy && !sent) setProduct(b.dataset.product); });
@@ -659,6 +702,7 @@ $('send').addEventListener('click', async () => {
       product, style, variant, capa, cutType, offsetCm,
       gapCm,
       designs: designs.map((d) => ({ wCm: d.w, hCm: d.h })),
+      rects: product === 'vinilo' ? designs.map(isRect) : [],
       layout: montage.boxes.map((b) => ({ d: b.d, x: b.x, y: b.y, rot: b.rot })),
       name: $('name').value, phone: $('phone').value, note: $('note').value,
       accepted: true

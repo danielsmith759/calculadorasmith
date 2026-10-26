@@ -150,20 +150,24 @@ function productParams(meta) {
     if (!variant) fail('Tipo de vinilo inválido.');
     if (variant.capas.includes('elegir') && !['blanco', 'brillo'].includes(meta.capa)) fail('Elige blanco o brillo.');
     if (!['medio', 'total'].includes(meta.cutType)) fail('Tipo de corte inválido.');
-    return { W: v.anchoUtilCm, gapMin: v.separacionCm, gapMax: v.separacionMaxCm, off, minLen: v.largoMinimoCm, maxLen: v.largoMaximoCm, variant };
+    const capas = variant.capas.includes('elegir') ? [meta.capa] : variant.capas;
+    // Con base blanca el montaje es 145 x 55 cm; a color o con brillo, 95 x 95 cm.
+    const area = capas.includes('blanco') ? v.areaBlanco : v.areaColor;
+    return { W: area.anchoCm, gapMin: v.separacionCm, gapMax: v.separacionMaxCm, off, minLen: v.largoMinimoCm, maxLen: area.largoMaxCm, variant, capas };
   }
   if (!config.estilos.some((e) => e.id === meta.style)) fail('Estilo inválido.');
   return { W: config.anchoRolloCm, gapMin: config.separacionCm, gapMax: config.separacionMaxCm, off: 0, minLen: config.largoMinimoCm, maxLen: config.largoMaximoCm };
 }
 
 // Las cajas incluyen el margen de corte (off) alrededor de cada diseño.
-function checkLayout(meta, fileCount, P) {
+function checkLayout(meta, fileCount, P, rects = []) {
   const W = P.W, G = meta.gapCm, EPS = 0.01;
   if (!Number.isFinite(G) || G < P.gapMin - 1e-9 || G > P.gapMax + 1e-9) fail('Separación entre diseños inválida.');
   if (!Array.isArray(meta.designs) || meta.designs.length !== fileCount || !fileCount) fail('Imágenes inválidas.');
   for (const d of meta.designs) {
-    if (!d || !Number.isFinite(d.wCm) || !Number.isFinite(d.hCm) || Math.min(d.wCm, d.hCm) < 0.5 ||
-      Math.min(d.wCm, d.hCm) + 2 * P.off > W || Math.max(d.wCm, d.hCm) > P.maxLen) fail('Medida de diseño inválida.');
+    if (!d || !Number.isFinite(d.wCm) || !Number.isFinite(d.hCm) || Math.min(d.wCm, d.hCm) < 0.5) fail('Medida de diseño inválida.');
+    const a = d.wCm + 2 * P.off, b = d.hCm + 2 * P.off;
+    if (!((a <= W + EPS && b <= P.maxLen + EPS) || (b <= W + EPS && a <= P.maxLen + EPS))) fail('Un diseño no cabe en el área de impresión.');
   }
   if (!Array.isArray(meta.layout) || !meta.layout.length) fail('Montaje inválido.');
   if (meta.layout.length > MAX_INSTANCES) fail(`Máximo ${MAX_INSTANCES} piezas por pedido.`);
@@ -175,10 +179,11 @@ function checkLayout(meta, fileCount, P) {
     if (it.x < -EPS || it.y < -EPS || it.x + w > W + EPS) fail('Hay diseños fuera del ancho del rollo.');
     return { x: it.x, y: it.y, w, h, d: it.d, rot: it.rot };
   });
-  // Las piezas deben respetar la separación para poder cortarlas.
+  // Las piezas deben respetar la separación para poder cortarlas (las de corte recto pueden ir unidas).
   for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
     const a = boxes[i], b = boxes[j];
-    if (a.x < b.x + b.w + G - EPS && b.x < a.x + a.w + G - EPS && a.y < b.y + b.h + G - EPS && b.y < a.y + a.h + G - EPS) {
+    const g = rects[a.d] && rects[b.d] ? 0 : G;
+    if (a.x < b.x + b.w + g - EPS && b.x < a.x + a.w + g - EPS && a.y < b.y + b.h + g - EPS && b.y < a.y + a.h + g - EPS) {
       fail('Hay diseños superpuestos o sin separación.');
     }
   }
@@ -222,10 +227,26 @@ async function composeMontage(meta, files, boxes, lengthCm, label, labelY, outPa
 }
 
 // Vinilo: PDF de producción (imagen + blanco/brillo + CutContour) y SVG de corte para SignMaster.
-async function buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, outBase) {
+// Transparencia de cada diseño a resolución de contorno, y si es rectangular (corte recto).
+async function prepVinyl(meta, files) {
+  const v = config.vinilo;
+  const prep = [];
+  for (let i = 0; i < files.length; i++) {
+    const d = meta.designs[i];
+    if (!d || !(d.wCm >= 0.5) || !(d.hCm >= 0.5) || !(Math.max(d.wCm, d.hCm) <= 1000)) fail('Medida de diseño inválida.');
+    const ppc = Contour.contourPxPerCm(d.wCm, d.hCm);
+    const cw = Math.max(2, Math.round(d.wCm * ppc)), ch = Math.max(2, Math.round(d.hCm * ppc));
+    const alpha = await input(files[i]).ensureAlpha().resize(cw, ch, { fit: 'fill' }).extractChannel(3).raw().toBuffer();
+    const claimed = Array.isArray(meta.rects) && meta.rects[i] === true;
+    prep.push({ alpha, cw, ch, rect: claimed && Contour.coverage(alpha, cw, ch) >= v.rectanguloCobertura - 0.02 });
+  }
+  return prep;
+}
+
+async function buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, outBase, prep) {
   const v = config.vinilo;
   const M = v.margenCm; // espacio libre alrededor para las marcas de registro de la plotter
-  const capas = P.variant.capas.includes('elegir') ? [meta.capa] : P.variant.capas;
+  const capas = P.capas;
   const images = [], contours = [];
   for (let i = 0; i < files.length; i++) {
     const d = meta.designs[i];
@@ -250,10 +271,8 @@ async function buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, outBase
       }
     }
     images.push({ width: info.width, height: info.height, rgba: data, white, gloss: capas.includes('brillo') ? solid : null });
-    const ppc = Contour.contourPxPerCm(d.wCm, d.hCm);
-    const cw = Math.max(2, Math.round(d.wCm * ppc)), ch = Math.max(2, Math.round(d.hCm * ppc));
-    const alpha = await input(files[i]).ensureAlpha().resize(cw, ch, { fit: 'fill' }).extractChannel(3).raw().toBuffer();
-    contours.push(Contour.cutContours(alpha, cw, ch, cw / d.wCm, P.off));
+    const { alpha, cw, ch, rect } = prep[i];
+    contours.push(rect ? Contour.rectContour(d.wCm, d.hCm, P.off) : Contour.cutContours(alpha, cw, ch, cw / d.wCm, P.off));
   }
   const pieces = [], cuts = [];
   for (const b of boxes) {
@@ -295,7 +314,9 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
       const files = (req.files && req.files.images) || [];
       const label = req.files && req.files.label && req.files.label[0];
       if (!label && !vinyl) fail('Falta la etiqueta del cliente.');
-      const { boxes, lengthCm: layoutLength } = checkLayout(meta, files.length, P);
+      if (vinyl && files.length !== (meta.designs || []).length) fail('Imágenes inválidas.');
+      const prep = vinyl ? await prepVinyl(meta, files) : [];
+      const { boxes, lengthCm: layoutLength } = checkLayout(meta, files.length, P, prep.map((x) => x.rect));
       const labelY = layoutLength + meta.gapCm; // franja con el nombre del cliente al final
       const rawLength = labelY + config.etiquetaCm;
       if (rawLength > P.maxLen + 0.01) fail(`El montaje supera ${P.maxLen} cm. Para más metros contáctanos.`);
@@ -322,13 +343,18 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
       let dpi = null;
       try {
         await exclusive(async () => {
-          if (vinyl) await buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, path.join(FILES_DIR, id));
+          if (vinyl) await buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, path.join(FILES_DIR, id), prep);
           else dpi = await composeMontage(meta, files, boxes, lengthCm, label, labelY, path.join(FILES_DIR, `${id}.png`));
         });
       } finally { waiting--; }
 
+      // Fracción del área de piezas que son pequeñas (tarifa especial de corte).
+      const pieceArea = (b) => b.w * b.h;
+      const isSmall = (b) => Math.max(meta.designs[b.d].wCm, meta.designs[b.d].hCm) < config.vinilo.piezaPequenaCm;
+      const totalArea = boxes.reduce((t, b) => t + pieceArea(b), 0);
+      const smallShare = vinyl ? boxes.filter(isSmall).reduce((t, b) => t + pieceArea(b), 0) / totalArea : 0;
       const { price, detalle } = vinyl
-        ? Pricing.quoteVinyl(config, meta.variant, usedWidth, lengthCm)
+        ? Pricing.quoteVinyl(config, meta.variant, usedWidth, lengthCm, smallShare)
         : Pricing.quote(config, meta.style, lengthCm);
       const usedCm2 = boxes.reduce((s, b) => s + b.w * b.h, 0);
       const orders = loadOrders();
@@ -338,7 +364,7 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
         style: vinyl ? P.variant.nombre : meta.style,
         files: vinyl ? ['pdf', 'svg'] : ['png'],
         ...(vinyl ? {
-          capas: P.variant.capas.includes('elegir') ? [meta.capa] : P.variant.capas,
+          capas: P.capas,
           cutType: meta.cutType, offsetCm: meta.offsetCm, widthCm: Number(usedWidth.toFixed(2))
         } : {}),
         gapCm: meta.gapCm,

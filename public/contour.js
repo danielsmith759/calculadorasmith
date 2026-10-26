@@ -153,7 +153,16 @@
   // Resolución recomendada para calcular el contorno de un diseño de wCm x hCm.
   const contourPxPerCm = (wCm, hCm) => Math.min(40, 900 / Math.max(wCm, hCm));
 
-  const api = { cutContours, contourPxPerCm, distanceSq };
+  // Un diseño es "rectangular" si su parte visible llena casi todo su recuadro: lleva corte recto
+  // y puede ir unido a otros rectangulares compartiendo la línea de corte.
+  function coverage(alpha, w, h, threshold = 128) {
+    let n = 0;
+    for (let i = 0; i < w * h; i++) if (alpha[i] >= threshold) n++;
+    return n / (w * h);
+  }
+  const rectContour = (wCm, hCm, off) => [[[-off, -off], [wCm + off, -off], [wCm + off, hCm + off], [-off, hCm + off]]];
+
+  const api = { cutContours, contourPxPerCm, distanceSq, coverage, rectContour };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Contour = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
