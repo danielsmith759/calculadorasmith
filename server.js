@@ -108,7 +108,6 @@ const exclusive = (fn) => {
 };
 
 const MAX_DESIGNS = 30;
-const MAX_INSTANCES = config.maxPiezas;
 // Tope de píxeles del montaje: 60 Mpx deja ~260 ppp en 1 m (las imágenes llegan a máx. 3000 px, no se pierde detalle).
 const MAX_MONTAGE_PIXELS = Number(process.env.MAX_MONTAGE_PIXELS) || 60e6;
 const MAX_INPUT_PIXELS = 50e6;         // por imagen subida
@@ -153,10 +152,10 @@ function productParams(meta) {
     const capas = variant.capas.includes('elegir') ? [meta.capa] : variant.capas;
     // Con base blanca el montaje es 145 x 55 cm; a color o con brillo, 95 x 95 cm.
     const area = capas.includes('blanco') ? v.areaBlanco : v.areaColor;
-    return { W: area.anchoCm, gapMin: v.separacionCm, gapMax: v.separacionMaxCm, off, minLen: v.largoMinimoCm, maxLen: area.largoMaxCm, variant, capas };
+    return { W: area.anchoCm, gapMin: v.separacionCm, gapMax: v.separacionMaxCm, off, minLen: v.largoMinimoCm, maxLen: area.largoMaxCm, maxPieces: v.maxPiezas, variant, capas };
   }
   if (!config.estilos.some((e) => e.id === meta.style)) fail('Estilo inválido.');
-  return { W: config.anchoRolloCm, gapMin: config.separacionCm, gapMax: config.separacionMaxCm, off: 0, minLen: config.largoMinimoCm, maxLen: config.largoMaximoCm };
+  return { W: config.anchoRolloCm, gapMin: config.separacionCm, gapMax: config.separacionMaxCm, off: 0, minLen: config.largoMinimoCm, maxLen: config.largoMaximoCm, maxPieces: config.maxPiezas };
 }
 
 // Las cajas incluyen el margen de corte (off) alrededor de cada diseño; los rectangulares van sin margen.
@@ -171,7 +170,7 @@ function checkLayout(meta, fileCount, P, rects = []) {
     if (!((a <= W + EPS && b <= P.maxLen + EPS) || (b <= W + EPS && a <= P.maxLen + EPS))) fail('Un diseño no cabe en el área de impresión.');
   }
   if (!Array.isArray(meta.layout) || !meta.layout.length) fail('Montaje inválido.');
-  if (meta.layout.length > MAX_INSTANCES) fail(`Máximo ${MAX_INSTANCES} piezas por pedido.`);
+  if (meta.layout.length > P.maxPieces) fail(`Máximo ${P.maxPieces} piezas por pedido.`);
   const boxes = meta.layout.map((it) => {
     if (!it || !Number.isInteger(it.d) || it.d < 0 || it.d >= meta.designs.length || typeof it.rot !== 'boolean' ||
       !Number.isFinite(it.x) || !Number.isFinite(it.y)) fail('Montaje inválido.');

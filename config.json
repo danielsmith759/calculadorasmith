@@ -138,6 +138,7 @@
     "margenCorteMinCm": 0.1,
     "margenCorteMaxCm": 0.5,
     "largoMinimoCm": 10,
+    "maxPiezas": 1000,
     "blancoReduccionMm": 0.1,
     "spots": {
       "corte": "CutContour",

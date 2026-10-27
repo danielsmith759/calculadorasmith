@@ -74,23 +74,26 @@
         <input type="number" id="qty" min="1" max="200" value="1">
         <div class="msg err" id="sizeWarn"></div>
         <div class="msg" id="dpiInfo"></div>
+        <button id="btnFill" type="button" class="sec">Llenar el espacio libre con esta imagen</button>
+        <div id="fit"></div>
       </div>
     </div>
   </div>
 
   <div id="quote" class="hidden">
     <h2>3. Tu montaje</h2>
+    <div class="montageBar"><span class="muted" id="stats"></span><button id="btnZoom" type="button" class="sec">Ver en grande</button></div>
+    <div class="montage" id="montageBox"><canvas id="montage" title="Toca para ver en grande"></canvas></div>
+    <p class="muted" id="montageNote"></p>
+    <div id="freeInfo" class="hidden"><div class="bar"><div id="freeBar"></div></div><p class="ok" id="freeText"></p></div>
     <div class="grid">
       <div>
-        <div class="montage"><canvas id="montage"></canvas></div>
-        <p class="muted" id="montageNote"></p>
         <label for="gap">Separación entre diseños (mm)</label>
         <input type="number" id="gap" min="5" max="20" step="1" value="5" inputmode="numeric">
         <div class="msg err" id="gapWarn"></div>
         <p class="warn" id="gapNote"></p>
       </div>
       <div>
-        <div class="muted" id="stats"></div>
         <div class="price" id="price">$0</div>
         <div class="muted" id="detail"></div>
         <p class="msg err" id="limit"></p>
@@ -98,6 +101,8 @@
         <p class="muted">IVA no incluido. Cotización estimada, sujeta a revisión del arte final.</p>
       </div>
     </div>
+
+    <div id="zoom" class="zoom hidden"><button id="zoomClose" type="button">Cerrar</button><p class="muted">Toca la imagen para acercar o alejar.</p><div class="zoomScroll"><img id="zoomImg" alt="Montaje ampliado"></div></div>
 
     <h2>4. Aclaraciones</h2>
     <div class="terms" id="terms"></div>

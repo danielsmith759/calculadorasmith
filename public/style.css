@@ -41,8 +41,23 @@ td a, td button { width: auto; display: inline-block; padding: 6px 10px; font-si
 .chip.sel { border-color: #FFD700; }
 .chip canvas { max-width: 100%; max-height: 100%; }
 .chip .x { position: absolute; top: -10px; right: -10px; width: 30px; height: 30px; padding: 0; margin: 0; border-radius: 50%; background: #d33; color: #fff; font-size: 14px; line-height: 30px; }
-.montage { max-height: 480px; overflow: auto; border-radius: 8px; background: #888; padding: 8px; text-align: center; }
-.montage canvas { width: 100%; max-width: 460px; background: #fff; }
+.montageBar { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.montageBar button { width: auto; padding: 8px 14px; }
+.montage { border-radius: 8px; background: #555; padding: 8px; text-align: center; }
+.montage canvas { max-width: 100%; max-height: 75vh; width: auto; height: auto; background: #fff; cursor: zoom-in; vertical-align: middle; }
+#freeInfo .bar { height: 14px; border-radius: 7px; background: rgba(46,160,67,.25); overflow: hidden; margin-top: 10px; }
+#freeBar { height: 100%; background: #FFD700; transition: width .3s; }
+.zoom { position: fixed; inset: 0; z-index: 50; background: #111; display: flex; flex-direction: column; padding: 12px; gap: 6px; }
+.zoom.hidden { display: none; }
+.zoom > button { width: auto; align-self: flex-end; }
+.zoom > p { margin: 0; }
+.zoomScroll { flex: 1; overflow: auto; text-align: center; }
+.zoomScroll img { max-width: 100%; max-height: 100%; background: #fff; cursor: zoom-in; }
+.zoomScroll img.real { max-width: none; max-height: none; width: auto; cursor: zoom-out; }
+table.fit td, table.fit th { padding: 6px; font-size: 13px; }
+table.fit tbody tr { cursor: pointer; }
+table.fit tbody tr:hover { background: rgba(255,215,0,.12); }
+table.fit tr.sel { background: rgba(255,215,0,.2); }
 .terms { background: rgba(0,0,0,.25); border-radius: 8px; padding: 10px 14px; }
 .terms label { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; margin: 8px 0; }
 .terms input { width: auto; margin: 3px 0 0; }
