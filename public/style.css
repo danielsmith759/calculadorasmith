@@ -83,3 +83,9 @@ textarea { font-family: inherit; }
 .product:hover:not(:disabled) { background: rgba(255,215,0,.08); }
 select option { color: #000; }
 input[type=color] { height: 44px; padding: 4px; }
+a { color: #FFD700; }
+.center { text-align: center; }
+a.wa { display: block; margin-top: 12px; padding: 12px; border-radius: 6px; background: #25D366; color: #000; text-align: center; text-decoration: none; font-size: 16px; }
+html.embed body { padding: 0; background: transparent; }
+html.embed .contenedor { box-shadow: none; max-width: none; padding: 12px; }
+html.embed header .logo { display: none; }

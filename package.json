@@ -1,11 +1,14 @@
 {
   "name": "calculadorasmith",
   "version": "1.0.0",
-  "description": "Cotizador y recepción de archivos para DTF UV - Smith Impresores",
+  "description": "Cotizador y recepci\u00f3n de archivos para DTF UV - Smith Impresores",
   "main": "server.js",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test"
   },
   "license": "ISC",
   "dependencies": {

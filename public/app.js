@@ -438,6 +438,11 @@ function drawMontage() {
 // Vista ampliada del montaje (pantalla completa; tocar alterna ajustar / tamaño real).
 function openZoom() {
   if (!montage) return;
+  if (document.documentElement.classList.contains('embed')) {
+    // Dentro de otra página la vista a pantalla completa quedaría tapada: se abre en una pestaña nueva.
+    $('montage').toBlob((blob) => { if (blob) window.open(URL.createObjectURL(blob), '_blank'); }, 'image/png');
+    return;
+  }
   $('zoomImg').src = $('montage').toDataURL('image/png');
   $('zoomImg').classList.remove('real');
   $('zoom').classList.remove('hidden');
@@ -924,6 +929,14 @@ $('send').addEventListener('click', async () => {
     $('again').classList.remove('hidden');
     out.className = 'msg ok big';
     out.textContent = `¡Pedido recibido! Referencia ${data.ref} · Total estimado ${fmt(data.price)} + IVA. Te contactaremos pronto por WhatsApp.`;
+    const wa = config.contacto && config.contacto.whatsapp;
+    if (wa) {
+      const a = document.createElement('a');
+      a.href = `https://wa.me/${wa}?text=${encodeURIComponent(config.contacto.mensaje.replace('{ref}', data.ref))}`;
+      a.target = '_blank'; a.rel = 'noopener'; a.className = 'wa';
+      a.textContent = 'Escribirnos por WhatsApp con mi referencia';
+      out.appendChild(a);
+    }
     out.scrollIntoView({ behavior: 'smooth', block: 'center' });
   } catch (e) {
     out.className = 'msg err';
@@ -941,5 +954,6 @@ fetch('/api/config').then((r) => r.json()).then((c) => {
   config = c;
   offsetCm = c.vinilo.margenCorteCm;
   $('offset').min = c.vinilo.margenCorteMinCm * 10; $('offset').max = c.vinilo.margenCorteMaxCm * 10; $('offset').value = c.vinilo.margenCorteCm * 10;
-  setProduct('dtf');
+  // ?producto=vinilo abre directo el cotizador de vinilo (enlaces para la web, redes y WhatsApp).
+  setProduct(new URLSearchParams(location.search).get('producto') === 'vinilo' ? 'vinilo' : 'dtf');
   updateSend(); });

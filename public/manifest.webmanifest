@@ -1,0 +1,15 @@
+{
+  "name": "Smith Impresores - Cotizador",
+  "short_name": "Cotizador Smith",
+  "description": "Cotiza DTF UV y vinilo con corte, y calcula cuántos stickers caben.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#1E1E1E",
+  "theme_color": "#1E1E1E",
+  "lang": "es",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

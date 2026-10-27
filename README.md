@@ -43,3 +43,27 @@ npm install
 4. Espera el despliegue y abre la URL `https://....onrender.com`. El panel está en `/admin.html`.
 - En el plan gratis el servicio se "duerme" tras unos minutos sin uso (la primera visita tarda ~1 min) y los pedidos se pierden al reiniciar: descarga cada PNG apenas llegue.
 - Para clientes reales, usa un plan con disco persistente (variable `DATA_DIR` apuntando al disco).
+
+## Ponerlo en tu web y que los clientes lleguen fácil
+
+Reemplaza `TU-APP` por la dirección donde publiques la app (por ejemplo `https://cotizador.tudominio.com`).
+
+| Qué quieres | Cómo |
+|---|---|
+| **Botón o enlace** en tu web, redes, WhatsApp, Google Business | `https://TU-APP/` (cotizador), `https://TU-APP/?producto=vinilo` (abre en vinilo), `https://TU-APP/stickers.html` (calculadora de stickers) |
+| **Incrustar** el cotizador en una página de tu web | Pega una línea donde lo quieras: `<script src="https://TU-APP/embed.js"></script>` |
+| Incrustar **abierto en vinilo** | `<script src="https://TU-APP/embed.js" data-producto="vinilo"></script>` |
+| Incrustar la **calculadora de stickers** | `<script src="https://TU-APP/embed.js" data-herramienta="stickers"></script>` |
+| **Botón flotante** "Cotiza aquí" en todas las páginas | `<script src="https://TU-APP/embed.js" data-modo="boton" data-texto="Cotiza aquí"></script>` (opcional `data-color="#FFD700"`) |
+| **Instalar en el celular** como una app | Desde el navegador: menú → "Añadir a pantalla de inicio" (ya trae ícono y nombre) |
+
+Para que funcione la incrustación hay que autorizar el dominio de tu web en el servidor (variable de entorno):
+
+- `EMBED_ORIGINS` = `https://tuweb.com,https://www.tuweb.com` (acepta `https://*.tuweb.com`). Sin esto el navegador bloquea el iframe. El panel `/admin.html` y la API nunca se pueden incrustar.
+- `WHATSAPP` = número con indicativo de país, sin signos, por ejemplo `573001234567`. Al terminar el pedido aparece el botón "Escribirnos por WhatsApp con mi referencia" (el mensaje se edita en `contacto.mensaje` de `config.json`).
+
+Notas: en WordPress usa el bloque "HTML personalizado" (o un plugin de código en el encabezado para el botón flotante); en Wix "Insertar código → HTML"; en Shopify, una sección con HTML personalizado. El modo incrustado oculta el logo, ajusta solo el alto de la página y abre la vista ampliada del montaje en una pestaña nueva.
+
+### Pruebas
+
+`npm test` revisa precios, acomodo de piezas (sin salirse ni superponerse) y cortes. Conviene correrlo antes de subir cambios a precios o reglas.

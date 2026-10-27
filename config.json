@@ -199,5 +199,9 @@
       "ladoCm": 0.5,
       "bordeCm": 0.5
     }
+  },
+  "contacto": {
+    "whatsapp": "",
+    "mensaje": "Hola, hice el pedido {ref} en la web de Smith Impresores."
   }
 }

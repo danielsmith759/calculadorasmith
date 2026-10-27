@@ -123,8 +123,16 @@ app.set('trust proxy', 1);
 app.set('case sensitive routing', true);
 app.set('strict routing', true);
 app.disable('x-powered-by');
+// Páginas que se pueden incrustar (iframe) en la web del negocio: EMBED_ORIGINS="https://miweb.com,https://*.miweb.com".
+// El panel y la API nunca se incrustan.
+const EMBED_ORIGINS = (process.env.EMBED_ORIGINS || '').split(',').map((s) => s.trim().replace(/\/$/, ''))
+  .filter((s) => /^https?:\/\/(\*\.)?[\w.-]+(:\d+)?$/.test(s));
 app.use((req, res, next) => {
-  res.setHeader('X-Frame-Options', 'DENY');
+  if (EMBED_ORIGINS.length && !req.path.startsWith('/api/') && req.path !== '/admin.html') {
+    res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${EMBED_ORIGINS.join(' ')}`);
+  } else {
+    res.setHeader('X-Frame-Options', 'DENY');
+  }
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
   next();
@@ -134,7 +142,13 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/healthz', (req, res) => res.send('ok'));
 // Configuración pública: sin datos internos del taller (máquinas).
-const publicConfig = { ...config, vinilo: { ...config.vinilo, variantes: config.vinilo.variantes.map(({ maquina, ...v }) => v) } };
+const whatsapp = String(process.env.WHATSAPP || (config.contacto && config.contacto.whatsapp) || '').replace(/\D/g, '');
+const { spots, ...viniloPublic } = config.vinilo;
+const publicConfig = {
+  ...config,
+  vinilo: { ...viniloPublic, variantes: config.vinilo.variantes.map(({ maquina, ...v }) => v) },
+  contacto: { whatsapp, mensaje: (config.contacto && config.contacto.mensaje) || '' }
+};
 app.get('/api/config', (req, res) => res.json(publicConfig));
 
 class Invalid extends Error {}
