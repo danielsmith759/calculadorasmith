@@ -8,7 +8,7 @@ const DPI_BAD = 72;
 const BIG = 100000;        // alto "infinito" del rollo al empaquetar (cm)
 
 let config;
-let designs = [];   // { file, working, design, offX, offY, thumb, ratio, w, h, qty, cleaned }
+let designs = [];   // { file, working, logo, design, offX, offY, thumb, ratio, w, h, qty, cleaned, shape, shapeColor, shapePad }
 let sel = -1;
 let style = 'premium';
 let montage = null; // { boxes, lengthCm, over, labelY, invalid }
@@ -28,6 +28,7 @@ function hasWhite() {
 
 // Diseño rectangular (llena su recuadro): corte recto y puede ir unido a otros rectangulares.
 function isRect(d) {
+  if (d.shape === 'circulo' || d.shape === 'redondeado') return false; // su corte sigue la curva
   if (d.rectSrc === d.design) return d.rect;
   const c = document.createElement('canvas');
   const k = Math.min(1, 200 / Math.max(d.design.width, d.design.height));
@@ -93,6 +94,51 @@ function trim(src) {
   c.width = maxX - minX + 1; c.height = maxY - minY + 1;
   c.getContext('2d').drawImage(src, minX, minY, c.width, c.height, 0, 0, c.width, c.height);
   return { canvas: c, offX: minX, offY: minY };
+}
+
+// Forma del sticker: pone el logo (ya recortado) dentro de un círculo, cuadro redondeado o rectángulo
+// del color elegido. La figura queda como parte de la imagen, así el corte, el blanco y el precio la siguen solos.
+const SHAPE_MAX = 4000; // lado máximo (px) de la imagen con forma
+function applyShape(src, shape, color, padPct) {
+  if (!shape || shape === 'silueta') return src;
+  const { width: w, height: h } = src;
+  const pad = padPct / 100;
+  let W, H, r;
+  if (shape === 'circulo') {
+    // Círculo mínimo centrado que contiene todos los píxeles visibles del logo.
+    const px = src.getContext('2d').getImageData(0, 0, w, h).data;
+    const cx = w / 2, cy = h / 2;
+    let max2 = 0;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (px[(y * w + x) * 4 + 3] <= ALPHA_MIN) continue;
+        const dx = Math.max(Math.abs(x - cx), Math.abs(x + 1 - cx)), dy = Math.max(Math.abs(y - cy), Math.abs(y + 1 - cy));
+        if (dx * dx + dy * dy > max2) max2 = dx * dx + dy * dy;
+      }
+    }
+    W = H = 2 * Math.sqrt(max2) * (1 + pad);
+  } else {
+    const p = pad * Math.max(w, h);
+    W = w + 2 * p; H = h + 2 * p;
+  }
+  const k = Math.min(1, SHAPE_MAX / Math.max(W, H));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(W * k)); c.height = Math.max(1, Math.round(H * k));
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  if (shape === 'circulo') ctx.arc(c.width / 2, c.height / 2, c.width / 2, 0, Math.PI * 2);
+  else {
+    r = shape === 'redondeado' ? 0.15 * Math.min(c.width, c.height) : 0;
+    ctx.moveTo(r, 0);
+    ctx.arcTo(c.width, 0, c.width, c.height, r); ctx.arcTo(c.width, c.height, 0, c.height, r);
+    ctx.arcTo(0, c.height, 0, 0, r); ctx.arcTo(0, 0, c.width, 0, r);
+    ctx.closePath();
+  }
+  ctx.fill();
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, (c.width - w * k) / 2, (c.height - h * k) / 2, w * k, h * k);
+  return c;
 }
 
 // ---------- Empaquetado (MaxRects, con rotación 90°) ----------
@@ -428,6 +474,9 @@ function select(i) {
   say('');
   $('sizeWarn').textContent = '';
   $('w').value = d.w.toFixed(1); $('h').value = d.h.toFixed(1); $('qty').value = d.qty;
+  $('shape').value = d.shape; $('shapeColor').value = d.shapeColor; $('shapePad').value = d.shapePad;
+  $('shapePadVal').textContent = d.shapePad;
+  $('shapeOpts').classList.toggle('hidden', d.shape === 'silueta');
   drawPreview();
   updateInfo();
   renderChips();
@@ -447,8 +496,9 @@ function updateInfo() {
   $('dpiInfo').textContent = dpi < DPI_WARN
     ? `Resolución baja (${dpi} ppp) para esta medida: puede verse pixelada. Usa una imagen más grande o reduce la medida.`
     : `Resolución buena (${Math.min(dpi, 999)} ppp).`;
-  const c = d.design.getContext('2d');
-  const corners = [[0, 0], [d.design.width - 1, 0], [0, d.design.height - 1], [d.design.width - 1, d.design.height - 1]];
+  const src = d.logo || d.design; // el fondo se revisa en el logo, no en la forma
+  const c = src.getContext('2d');
+  const corners = [[0, 0], [src.width - 1, 0], [0, src.height - 1], [src.width - 1, src.height - 1]];
   const opaque = corners.every(([x, y]) => c.getImageData(x, y, 1, 1).data[3] > 200);
   $('bgWarn').textContent = opaque && !d.cleaned
     ? 'Tu imagen parece tener fondo. Si no lo quitas, el fondo también se imprimirá (incluido el blanco).'
@@ -459,8 +509,9 @@ function updateInfo() {
 function refreshDesign(d = cur()) {
   const t = trim(d.working);
   if (!t) return false;
-  d.design = t.canvas; d.offX = t.offX; d.offY = t.offY;
-  d.ratio = t.canvas.height / t.canvas.width;
+  d.logo = t.canvas; d.offX = t.offX; d.offY = t.offY;
+  d.design = applyShape(t.canvas, d.shape, d.shapeColor, d.shapePad);
+  d.ratio = d.design.height / d.design.width;
   d.h = d.w * d.ratio;
   makeThumb(d);
   if (d === cur()) {
@@ -560,7 +611,7 @@ $('file').addEventListener('change', async () => {
       if (designs.length >= MAX_DESIGNS) { alert(`Máximo ${MAX_DESIGNS} imágenes distintas por pedido.`); break; }
       let working;
       try { working = await loadImage(f); } catch { alert(`No se pudo leer "${f.name}". Usa PNG, JPG o WEBP.`); continue; }
-      const d = { file: f, working, design: null, ratio: 1, w: 10, h: 10, qty: 1, cleaned: false };
+      const d = { file: f, working, design: null, ratio: 1, w: 10, h: 10, qty: 1, cleaned: false, shape: 'silueta', shapeColor: '#ffffff', shapePad: 10 };
       const t = trim(working);
       if (!t) { alert(`"${f.name}" está vacía (totalmente transparente).`); continue; }
       // Medida inicial: el lado más largo en 10 cm.
@@ -574,6 +625,20 @@ $('file').addEventListener('change', async () => {
     setBusy(false);
   }
   if (sel >= 0) select(sel);
+});
+
+// Forma del sticker (el ancho elegido pasa a ser el de la forma completa).
+$('shape').addEventListener('change', () => {
+  const d = cur();
+  d.shape = $('shape').value;
+  $('shapeOpts').classList.toggle('hidden', d.shape === 'silueta');
+  refreshDesign(d);
+});
+$('shapeColor').addEventListener('input', () => { cur().shapeColor = $('shapeColor').value; refreshDesign(); });
+$('shapePad').addEventListener('input', () => {
+  $('shapePadVal').textContent = $('shapePad').value;
+  cur().shapePad = Number($('shapePad').value);
+  refreshDesign();
 });
 
 $('btnReset').addEventListener('click', async () => {

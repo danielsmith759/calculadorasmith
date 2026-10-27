@@ -66,3 +66,5 @@ textarea { font-family: inherit; }
 .product span { font-size: 13px; color: #ccc; }
 .product.sel { border-color: #FFD700; background: rgba(255,215,0,.12); }
 .product:hover:not(:disabled) { background: rgba(255,215,0,.08); }
+select option { color: #000; }
+input[type=color] { height: 44px; padding: 4px; }

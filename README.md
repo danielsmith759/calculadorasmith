@@ -14,6 +14,7 @@ Cotizador y recepción de archivos para **DTF UV** (Smith Impresores).
 - El cliente elige **Vinilo con corte** y el tipo: ecosolvente con semicorte (Epson SureColor · Onyx, $50.000) o UV (Mimaki UJV100-160 · RasterLink, $45.000) con blanco o brillo ($68.000) o blanco + brillo ($92.000). **Se cobra el pliego completo** (95 × 95 cm a color/brillo, 145 × 55 cm con base blanca), se llene o no. Por ahora solo **semicorte** (el corte total está desactivado).
 - Área de impresión: **95 × 95 cm** a color o con brillo; **145 × 55 cm** (ancho × largo) con base blanca (`areaColor` / `areaBlanco`).
 - Separación mínima **4 mm** entre cortes; los diseños **rectangulares** (llenan su recuadro) llevan corte recto justo en el borde (sin margen) y van **unidos**; las líneas compartidas se unen en una sola para que la plotter pase una vez.
+- **Forma del sticker** (en cada diseño): silueta, círculo, cuadro redondeado o rectángulo, con color de fondo y espacio alrededor del logo. La forma se dibuja en la imagen, así el corte, el blanco y el empaquetado la siguen solos; el rectángulo va unido con corte recto compartido.
 - **Piezas pequeñas** (lado mayor < 3 cm, `piezaPequenaCm`): si el montaje tiene alguna, todo el pliego pasa a `precioPequeno` (ecosolvente $80.000, UV $90.000, UV + blanco o brillo $98.000, UV + blanco + brillo $122.000). El corte no tiene otro cobro adicional.
 - La **guía de corte** se calcula sola desde la silueta de cada diseño (`public/contour.js`) con el margen elegido (1–5 mm). El cliente la ve en rosado punteado.
 - El taller descarga:

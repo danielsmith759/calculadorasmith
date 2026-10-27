@@ -48,6 +48,20 @@
         <input type="range" id="tol" min="5" max="120" value="30">
         <label class="check"><input type="checkbox" id="everywhere"> Quitar ese color en toda la imagen (también dentro de letras y figuras)</label>
         <button id="btnReset" type="button" class="sec">Restaurar original</button>
+        <label for="shape"><b>Forma del sticker</b></label>
+        <select id="shape">
+          <option value="silueta">Silueta del diseño (sin fondo)</option>
+          <option value="circulo">Círculo</option>
+          <option value="redondeado">Cuadro con esquinas redondeadas</option>
+          <option value="rectangulo">Rectángulo (corte recto)</option>
+        </select>
+        <div id="shapeOpts" class="hidden">
+          <div class="row">
+            <div><label for="shapeColor">Color de fondo</label><input type="color" id="shapeColor" value="#ffffff"></div>
+            <div><label for="shapePad">Espacio alrededor del logo: <span id="shapePadVal">10</span>%</label><input type="range" id="shapePad" min="0" max="40" value="10"></div>
+          </div>
+          <p class="muted">El logo queda centrado dentro de la forma. La medida que elijas es la de la forma completa.</p>
+        </div>
         <div id="status" class="msg muted"></div>
       </div>
       <div>
