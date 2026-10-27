@@ -212,12 +212,11 @@ function maxFit(i) {
   return lo;
 }
 
-// Estimado rápido: cuántas piezas de w x h caben en una franja de ancho W y largo L (en filas y columnas).
+// Estimado rápido: cuántas piezas de w x h caben en una franja de ancho W y largo L.
 function gridCount(d, w, h, L, p = P()) {
   const rect = product === 'vinilo' && isRect(d);
   const o = rect ? 0 : p.off, g = rect ? 0 : gapCm;
-  const fit = (a, b) => Math.max(0, Math.floor((p.W + g) / (a + 2 * o + g))) * Math.max(0, Math.floor((L + g) / (b + 2 * o + g)));
-  return Math.min(p.maxPieces, Math.max(fit(w, h), fit(h, w)));
+  return Math.min(p.maxPieces, Pricing.fitCount(p.W, L, w + 2 * o, h + 2 * o, g));
 }
 
 // Prueba varios órdenes de acomodo y se queda con el montaje más corto.

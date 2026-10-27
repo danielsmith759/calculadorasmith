@@ -27,7 +27,34 @@
       detalle: `Pliego completo ${area.anchoCm} × ${area.largoMaxCm} cm` + (small ? ' · tarifa de corte pequeño (piezas menores de 3 cm)' : '')
     };
   }
-  const api = { quote, quoteVinyl };
+  // Acomodo de piezas iguales de a x b cm (ya con margen de corte) en W x L con separación g.
+  // Prueba las dos orientaciones y combinaciones de columnas (o filas) en una orientación + el resto girado.
+  // Devuelve las posiciones [{ x, y, w, h }] en cm.
+  function fitLayout(W, L, a, b, g) {
+    const n = (len, size) => Math.max(0, Math.floor((len + g + 1e-9) / (size + g)));
+    let best = null;
+    for (const t of [false, true]) { // t: se divide por filas en vez de columnas
+      const WW = t ? L : W, LL = t ? W : L;
+      for (const [p, q] of [[a, b], [b, a]]) {
+        const cols = n(WW, p);
+        for (let k = 0; k <= cols; k++) {
+          const rest = WW - k * (p + g);
+          const count = k * n(LL, q) + n(rest, q) * n(LL, p);
+          if (!best || count > best.count) best = { count, t, p, q, k, WW, LL, rest };
+        }
+      }
+    }
+    const { t, p, q, k, LL, rest } = best;
+    const out = [];
+    const push = (x, y, w, h) => out.push(t ? { x: y, y: x, w: h, h: w } : { x, y, w, h });
+    for (let c = 0; c < k; c++) for (let r = 0; r < n(LL, q); r++) push(c * (p + g), r * (q + g), p, q);
+    const x0 = k * (p + g);
+    for (let c = 0; c < n(rest, q); c++) for (let r = 0; r < n(LL, p); r++) push(x0 + c * (q + g), r * (p + g), q, p);
+    return out;
+  }
+  const fitCount = (W, L, a, b, g) => fitLayout(W, L, a, b, g).length;
+
+  const api = { quote, quoteVinyl, fitLayout, fitCount };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Pricing = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
