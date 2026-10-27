@@ -149,7 +149,7 @@ function productParams(meta) {
     const variant = v.variantes.find((x) => x.id === meta.variant);
     if (!variant) fail('Tipo de vinilo inválido.');
     if (variant.capas.includes('elegir') && !['blanco', 'brillo'].includes(meta.capa)) fail('Elige blanco o brillo.');
-    if (!['medio', 'total'].includes(meta.cutType)) fail('Tipo de corte inválido.');
+    if (meta.cutType !== 'medio') fail('Por ahora solo se hace semicorte.');
     const capas = variant.capas.includes('elegir') ? [meta.capa] : variant.capas;
     // Con base blanca el montaje es 145 x 55 cm; a color o con brillo, 95 x 95 cm.
     const area = capas.includes('blanco') ? v.areaBlanco : v.areaColor;

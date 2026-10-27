@@ -18,7 +18,7 @@ let gapCm = null;   // separación entre diseños elegida por el cliente (mínim
 let product = 'dtf'; // 'dtf' o 'vinilo'
 let variant = 'eco'; // tipo de vinilo
 let capa = 'blanco'; // para "UV + blanco o brillo"
-let cutType = 'medio';
+const cutType = 'medio'; // por ahora solo semicorte
 let offsetCm = null; // margen de la línea de corte alrededor del diseño (vinilo)
 
 function hasWhite() {
@@ -528,7 +528,6 @@ $('offset').addEventListener('input', () => {
   offsetCm = mm / 10;
   relayout();
 });
-for (const r of document.querySelectorAll('input[name="cutType"]')) r.addEventListener('change', () => { cutType = r.value; });
 
 // Cambio de producto: ajusta separación, límites, precios y aclaraciones.
 function setProduct(p) {

@@ -205,7 +205,7 @@
     ],
     "aclaraciones": [
       "Cada diseño se corta con plotter siguiendo su silueta con el margen elegido. El corte tiene una tolerancia aproximada de ±1 mm.",
-      "Medio corte (semicorte): se corta solo el vinilo y los stickers quedan en la planilla. Corte total: cada pieza sale suelta.",
+      "Semicorte: se corta solo el vinilo y los stickers quedan en la planilla. Por ahora no se hace corte total (piezas sueltas).",
       "Entre diseños se dejan mínimo 4 mm de separación. Los diseños rectangulares (corte recto) pueden ir unidos, compartiendo la línea de corte.",
       "Área máxima de impresión: 95 × 95 cm a color o con brillo; 145 × 55 cm con base blanca.",
       "Si el montaje tiene piezas pequeñas (menores de 3 cm), todo el pliego pasa a la tarifa de corte pequeño por la dificultad del corte.",
