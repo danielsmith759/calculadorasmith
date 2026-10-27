@@ -465,7 +465,7 @@ function renderStyles() {
   $('styles').innerHTML = '';
   $('vinylOpts').classList.toggle('hidden', product !== 'vinilo');
   $('styleNote').textContent = product === 'vinilo'
-    ? 'Precio por pliego completo (95 × 95 cm, o 145 × 55 cm con base blanca), se llene o no. IVA no incluido.'
+    ? 'Precio por pliego completo de 95 × 95 cm, se llene o no. IVA no incluido.'
     : 'Precios sobre 58 cm de ancho, IVA no incluido. Los valores mostrados corresponden a tu montaje actual.';
   if (product === 'vinilo') {
     for (const v of config.vinilo.variantes) {

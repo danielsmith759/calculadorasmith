@@ -148,30 +148,28 @@
     "variantes": [
       {
         "id": "eco",
-        "nombre": "Vinilo blanco",
+        "nombre": "Vinilo",
         "maquina": "Epson SureColor · Onyx",
         "precio": 50000,
         "precioPequeno": 80000,
         "capas": [],
         "puntos": [
-          "Impresión a todo color sobre vinilo blanco con semicorte",
+          "Impresión a todo color con semicorte",
           "Ideal para stickers, etiquetas y señalización",
           "Pliego de 95 × 95 cm"
         ]
       },
       {
-        "id": "uvb",
-        "nombre": "Vinilo UV con base blanca",
+        "id": "uv",
+        "nombre": "Vinilo UV",
         "maquina": "Mimaki UJV100-160 · RasterLink",
-        "precio": 68000,
-        "precioPequeno": 98000,
-        "capas": [
-          "blanco"
-        ],
+        "precio": 45000,
+        "precioPequeno": 90000,
+        "capas": [],
         "puntos": [
-          "Impresión UV con capa de blanco debajo del diseño",
-          "Colores opacos sobre vinilo transparente",
-          "Pliego de 145 × 55 cm"
+          "Impresión UV a todo color con semicorte",
+          "Mayor resistencia al rayado y al agua",
+          "Pliego de 95 × 95 cm"
         ]
       }
     ],
@@ -179,11 +177,11 @@
       "Cada diseño se corta con plotter siguiendo su silueta con el margen elegido. El corte tiene una tolerancia aproximada de ±1 mm.",
       "Semicorte: se corta solo el vinilo y los stickers quedan en la planilla. Por ahora no se hace corte total (piezas sueltas).",
       "Entre diseños se dejan mínimo 4 mm de separación. Los diseños rectangulares (corte recto) pueden ir unidos, compartiendo la línea de corte.",
-      "Área máxima de impresión: 95 × 95 cm en vinilo blanco; 145 × 55 cm en vinilo UV con base blanca.",
+      "Área de impresión: pliego de 95 × 95 cm.",
       "Si el montaje tiene piezas pequeñas (menores de 3 cm), todo el pliego pasa a la tarifa de corte pequeño por la dificultad del corte.",
       "Diseños con partes muy delgadas o detalles menores a 2 mm pueden no cortarse bien.",
       "El color en pantalla es una referencia. Puede variar ligeramente respecto al resultado impreso.",
-      "Se cobra el pliego completo aunque no lo llenes: 95 × 95 cm en vinilo blanco, 145 × 55 cm en vinilo UV con base blanca. Aprovecha el espacio libre agregando más diseños. IVA no incluido.",
+      "Se cobra el pliego completo aunque no lo llenes: pliego de 95 × 95 cm. Aprovecha el espacio libre agregando más diseños. IVA no incluido.",
       "La cotización es un estimado. Queda sujeta a revisión del arte final por parte del taller.",
       "Si el diseño requiere ajustes, montaje o corrección de arte, se cobra diseño adicional."
     ],
