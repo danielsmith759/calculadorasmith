@@ -133,7 +133,9 @@ app.use(express.json({ limit: '10kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/healthz', (req, res) => res.send('ok'));
-app.get('/api/config', (req, res) => res.json(config));
+// Configuración pública: sin datos internos del taller (máquinas).
+const publicConfig = { ...config, vinilo: { ...config.vinilo, variantes: config.vinilo.variantes.map(({ maquina, ...v }) => v) } };
+app.get('/api/config', (req, res) => res.json(publicConfig));
 
 class Invalid extends Error {}
 const fail = (msg) => { throw new Invalid(msg); };

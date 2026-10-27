@@ -473,7 +473,7 @@ function renderStyles() {
       card.className = 'style-card' + (v.id === variant ? ' sel' : '');
       const price = `${fmt(L != null && montage.boxes && hasSmallPieces(montage.boxes) && v.precioPequeno ? v.precioPequeno : v.precio)} / pliego`;
       card.innerHTML = `<input type="radio" name="variant" ${v.id === variant ? 'checked' : ''}>
-        <b>${v.nombre}</b><h3>${v.maquina}</h3><ul>${v.puntos.map((t) => `<li>${t}</li>`).join('')}</ul><div class="p">${price}</div>`;
+        <h3>${v.nombre}</h3><ul>${v.puntos.map((t) => `<li>${t}</li>`).join('')}</ul><div class="p">${price}</div>`;
       if (v.capas.includes('elegir') && v.id === variant) {
         const pick = document.createElement('div');
         pick.className = 'row';
