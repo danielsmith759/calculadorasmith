@@ -11,14 +11,14 @@ Cotizador y recepción de archivos para **DTF UV** (Smith Impresores).
 6. Cada montaje lleva al final una franja de 0,8 cm con el nombre del cliente y la fecha (`etiquetaCm` en `config.json`), para identificar el trabajo al imprimir. Como el servidor puede ser temporal, descarga el PNG y guárdalo en tu unidad; la carpeta `data/` se puede vaciar.
 
 ## Vinilo con corte
-- El cliente elige **Vinilo con corte** y el tipo: ecosolvente con semicorte (Epson SureColor · Onyx, $50.000/m²) o UV (Mimaki UJV100-160 · RasterLink, $45.000/m²) con blanco y/o brillo ($68.000 / $92.000). Precio por m² del montaje (ancho usado × largo), mínimo `areaMinimaM2`.
+- El cliente elige **Vinilo con corte** y el tipo: ecosolvente con semicorte (Epson SureColor · Onyx, $50.000) o UV (Mimaki UJV100-160 · RasterLink, $45.000) con blanco o brillo ($68.000) o blanco + brillo ($92.000). **Se cobra el pliego completo** (95 × 95 cm a color/brillo, 145 × 55 cm con base blanca), se llene o no.
 - Área de impresión: **95 × 95 cm** a color o con brillo; **145 × 55 cm** (ancho × largo) con base blanca (`areaColor` / `areaBlanco`).
 - Separación mínima **4 mm** entre cortes; los diseños **rectangulares** (llenan su recuadro) llevan corte recto justo en el borde (sin margen) y van **unidos**; las líneas compartidas se unen en una sola para que la plotter pase una vez.
-- **Piezas pequeñas** (lado mayor < 3 cm, `piezaPequenaCm`): tarifa `precioPequenoM2` (ecosolvente $80.000, UV $90.000, UV + blanco o brillo $98.000, UV + blanco + brillo $122.000) aplicada en proporción al área de esas piezas.
+- **Piezas pequeñas** (lado mayor < 3 cm, `piezaPequenaCm`): si el montaje tiene alguna, todo el pliego pasa a `precioPequeno` (ecosolvente $80.000, UV $90.000, UV + blanco o brillo $98.000, UV + blanco + brillo $122.000). El corte no tiene otro cobro adicional.
 - La **guía de corte** se calcula sola desde la silueta de cada diseño (`public/contour.js`) con el margen elegido (1–5 mm). El cliente la ve en rosado punteado.
 - El taller descarga:
-  - **PDF de producción** (página = ancho útil + `margenCm` a cada lado para las marcas de registro): imagen, capa `White` (un poco reducida, `blancoReduccionMm`), capa `Gloss` y línea `CutContour`, como colores directos con sobreimpresión. Nombres configurables en `vinilo.spots` (verificar los que espera RasterLink/Onyx).
-  - **SVG de corte** con las mismas líneas y posiciones, para importar en SignMaster (SkyCut). Las marcas de registro las agrega SignMaster.
+  - **PDF de producción** (página = ancho útil + `margenCm` a cada lado con 4 **marcas de registro** negras en las esquinas, en su propia capa `Marcas` (`vinilo.marcas`)): imagen, capa `White` (un poco reducida, `blancoReduccionMm`), capa `Gloss` y línea `CutContour`, como colores directos con sobreimpresión. Nombres configurables en `vinilo.spots` (verificar los que espera RasterLink/Onyx).
+  - **SVG de corte** con las mismas líneas y posiciones, para importar en SignMaster (SkyCut). Trae las marcas de registro en el grupo `Marcas` (mismo lugar que en el PDF) para alinear la plotter.
 
 ## Uso
 ```

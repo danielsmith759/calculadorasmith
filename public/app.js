@@ -213,11 +213,9 @@ function relayout() {
       const used = boxes.reduce((s, b) => s + b.w * b.h, 0);
       let q, empty;
       if (product === 'vinilo') {
-        const small = boxes.filter((b) => Math.max(designs[b.d].w, designs[b.d].h) < config.vinilo.piezaPequenaCm);
-        const share = small.reduce((t, b) => t + b.w * b.h, 0) / used;
-        q = Pricing.quoteVinyl(config, variant, usedWidth, lengthCm, share);
-        empty = Math.round((1 - used / (usedWidth * lengthCm)) * 100);
-        $('stats').textContent = `${boxes.length} pieza(s) · montaje de ${usedWidth.toFixed(1)} × ${lengthCm.toFixed(1)} cm (ancho usado × largo)`;
+        q = Pricing.quoteVinyl(config, variant, { anchoCm: p.W, largoMaxCm: p.maxLen }, hasSmallPieces(boxes));
+        empty = Math.round((1 - used / (p.W * p.maxLen)) * 100);
+        $('stats').textContent = `${boxes.length} pieza(s) · ocupan ${usedWidth.toFixed(1)} × ${lengthCm.toFixed(1)} cm del pliego de ${p.W} × ${p.maxLen} cm`;
       } else {
         q = Pricing.quote(config, style, lengthCm);
         empty = Math.round((1 - used / (p.W * lengthCm)) * 100);
@@ -231,7 +229,9 @@ function relayout() {
         ? `El montaje mide ${rawLength.toFixed(1)} cm y el máximo es ${p.maxLen} cm. Reduce medidas o cantidades; para más metros contáctanos y se manejan por metros aparte.`
         : '';
       $('waste').textContent = empty > 5 && !over
-        ? `Espacio libre en tu montaje: ${empty}%. Ese espacio se cobra porque consume material; puedes aprovecharlo agregando más imágenes sin pagar más.`
+        ? (product === 'vinilo'
+          ? `Espacio libre en tu pliego: ${empty}%. Se cobra el pliego completo; puedes aprovecharlo agregando más diseños sin pagar más.`
+          : `Espacio libre en tu montaje: ${empty}%. Ese espacio se cobra porque consume material; puedes aprovecharlo agregando más imágenes sin pagar más.`)
         : '';
       drawMontage();
     }
@@ -321,18 +321,21 @@ function drawMontage() {
   ctx.restore();
 }
 
+// Piezas con el lado mayor por debajo del límite de corte pequeño.
+const hasSmallPieces = (boxes) => boxes.some((b) => Math.max(designs[b.d].w, designs[b.d].h) < config.vinilo.piezaPequenaCm);
+
 function renderStyles() {
   const L = montage && !montage.over ? montage.lengthCm : null;
   $('styles').innerHTML = '';
   $('vinylOpts').classList.toggle('hidden', product !== 'vinilo');
   $('styleNote').textContent = product === 'vinilo'
-    ? 'Precios por m² del montaje (ancho usado × largo), IVA no incluido. El valor mostrado corresponde a tu montaje actual.'
+    ? 'Precio por pliego completo (95 × 95 cm, o 145 × 55 cm con base blanca), se llene o no. IVA no incluido.'
     : 'Precios sobre 58 cm de ancho, IVA no incluido. Los valores mostrados corresponden a tu montaje actual.';
   if (product === 'vinilo') {
     for (const v of config.vinilo.variantes) {
       const card = document.createElement('label');
       card.className = 'style-card' + (v.id === variant ? ' sel' : '');
-      const price = L == null ? `${fmt(v.precioM2)}/m²` : fmt(Pricing.quoteVinyl(config, v.id, montage.usedWidth, L).price);
+      const price = `${fmt(L != null && montage.boxes && hasSmallPieces(montage.boxes) && v.precioPequeno ? v.precioPequeno : v.precio)} / pliego`;
       card.innerHTML = `<input type="radio" name="variant" ${v.id === variant ? 'checked' : ''}>
         <b>${v.nombre}</b><h3>${v.maquina}</h3><ul>${v.puntos.map((t) => `<li>${t}</li>`).join('')}</ul><div class="p">${price}</div>`;
       if (v.capas.includes('elegir') && v.id === variant) {

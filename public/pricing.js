@@ -17,22 +17,14 @@
       detalle: `${m.toFixed(2)} m × ${t[style].toLocaleString('es-CO')}/m${pct}`
     };
   }
-  // Vinilo: precio por m² del montaje (ancho usado x largo) según la variante.
-  // smallShare: fracción del área de piezas que corresponde a piezas pequeñas (tarifa especial).
-  function quoteVinyl(cfg, variantId, usedWidthCm, lengthCm, smallShare = 0) {
-    const v = cfg.vinilo;
-    const variant = v.variantes.find((x) => x.id === variantId);
-    const real = (usedWidthCm * lengthCm) / 10000;
-    const area = Math.max(v.areaMinimaM2, real);
-    const small = variant.precioPequenoM2 || variant.precioM2;
-    const perM2 = Math.round(variant.precioM2 * (1 - smallShare) + small * smallShare) + (v.cortePorM2 || 0);
-    const minNote = real < v.areaMinimaM2 ? ` (mínimo ${String(v.areaMinimaM2).replace('.', ',')} m²)` : '';
-    const smallNote = smallShare > 0 && small !== variant.precioM2
-      ? ` · ${Math.round(smallShare * 100)}% en piezas pequeñas a ${small.toLocaleString('es-CO')}/m²` : '';
+  // Vinilo: se cobra el pliego completo de la variante, se llene o no.
+  // hasSmall: si el montaje tiene piezas pequeñas, todo el pliego va a la tarifa de corte pequeño.
+  function quoteVinyl(cfg, variantId, area, hasSmall = false) {
+    const variant = cfg.vinilo.variantes.find((x) => x.id === variantId);
+    const small = hasSmall && variant.precioPequeno && variant.precioPequeno !== variant.precio;
     return {
-      price: Math.round((area * perM2) / 100) * 100,
-      area,
-      detalle: `${area.toFixed(3).replace('.', ',')} m²${minNote} × ${perM2.toLocaleString('es-CO')}/m²${smallNote}`
+      price: small ? variant.precioPequeno : variant.precio,
+      detalle: `Pliego completo ${area.anchoCm} × ${area.largoMaxCm} cm` + (small ? ' · tarifa de corte pequeño (piezas menores de 3 cm)' : '')
     };
   }
   const api = { quote, quoteVinyl };

@@ -287,14 +287,17 @@ async function buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, outBase
   }
   for (const line of Contour.gridLines(rectBoxes)) { line.open = true; cuts.push(line); }
   const pageW = P.W + 2 * M, pageH = lengthCm + 2 * M;
+  // Marcas de registro en las 4 esquinas, dentro del margen (la plotter las lee para alinear el corte).
+  const { ladoCm: s, bordeCm: e } = v.marcas;
+  const marks = [[e, e], [pageW - e - s, e], [e, pageH - e - s], [pageW - e - s, pageH - e - s]].map(([x, y]) => [x, y, s]);
   const text = `${name.toUpperCase()}  ·  ${new Date().toLocaleDateString('es-CO')}  ·  ${P.variant.nombre}`;
   const pdf = buildPdf({
-    pageW, pageH, images, pieces, cuts,
+    pageW, pageH, images, pieces, cuts, marks,
     label: { text, x: M, y: M + labelY + config.etiquetaCm * 0.75, size: config.etiquetaCm * PT * 0.6 },
     spots: v.spots
   });
   fs.writeFileSync(outBase + '.pdf', pdf);
-  fs.writeFileSync(outBase + '.svg', buildCutSvg(pageW, pageH, cuts));
+  fs.writeFileSync(outBase + '.svg', buildCutSvg(pageW, pageH, cuts, marks));
 }
 
 const tooBig = (req, res, next) =>
@@ -353,13 +356,10 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
         });
       } finally { waiting--; }
 
-      // Fracción del área de piezas que son pequeñas (tarifa especial de corte).
-      const pieceArea = (b) => b.w * b.h;
-      const isSmall = (b) => Math.max(meta.designs[b.d].wCm, meta.designs[b.d].hCm) < config.vinilo.piezaPequenaCm;
-      const totalArea = boxes.reduce((t, b) => t + pieceArea(b), 0);
-      const smallShare = vinyl ? boxes.filter(isSmall).reduce((t, b) => t + pieceArea(b), 0) / totalArea : 0;
+      // Piezas pequeñas: todo el pliego pasa a la tarifa de corte pequeño.
+      const hasSmall = vinyl && boxes.some((b) => Math.max(meta.designs[b.d].wCm, meta.designs[b.d].hCm) < config.vinilo.piezaPequenaCm);
       const { price, detalle } = vinyl
-        ? Pricing.quoteVinyl(config, meta.variant, usedWidth, lengthCm, smallShare)
+        ? Pricing.quoteVinyl(config, meta.variant, { anchoCm: P.W, largoMaxCm: P.maxLen }, hasSmall)
         : Pricing.quote(config, meta.style, lengthCm);
       const usedCm2 = boxes.reduce((s, b) => s + b.w * b.h, 0);
       const orders = loadOrders();
@@ -376,7 +376,7 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
         lengthCm: Number(lengthCm.toFixed(2)),
         pieces: boxes.length,
         items: pieces,
-        emptyPct: Math.round((1 - usedCm2 / (P.W * Math.max(layoutLength, P.minLen))) * 100),
+        emptyPct: Math.round((1 - usedCm2 / (P.W * (vinyl ? P.maxLen : Math.max(layoutLength, P.minLen)))) * 100),
         price, detalle, dpi,
         acceptedAt: new Date().toISOString(),
         status: 'pendiente', createdAt: new Date().toISOString()

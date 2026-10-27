@@ -138,8 +138,6 @@
     "margenCorteMinCm": 0.1,
     "margenCorteMaxCm": 0.5,
     "largoMinimoCm": 10,
-    "areaMinimaM2": 0.1,
-    "cortePorM2": 0,
     "blancoReduccionMm": 0.1,
     "spots": {
       "corte": "CutContour",
@@ -151,33 +149,33 @@
         "id": "eco",
         "nombre": "Vinilo ecosolvente",
         "maquina": "Epson SureColor · Onyx",
-        "precioM2": 50000,
+        "precio": 50000,
         "capas": [],
         "puntos": [
           "Impresión a color (CMYK) con semicorte",
           "Ideal para stickers, etiquetas y señalización",
           "Área máxima 95 × 95 cm"
         ],
-        "precioPequenoM2": 80000
+        "precioPequeno": 80000
       },
       {
         "id": "uv",
         "nombre": "Vinilo UV",
         "maquina": "Mimaki UJV100-160 · RasterLink",
-        "precioM2": 45000,
+        "precio": 45000,
         "capas": [],
         "puntos": [
           "Impresión UV a color",
           "Mayor resistencia al rayado y al agua",
           "Área máxima 95 × 95 cm"
         ],
-        "precioPequenoM2": 90000
+        "precioPequeno": 90000
       },
       {
         "id": "uv1",
         "nombre": "Vinilo UV + blanco o brillo",
         "maquina": "Mimaki UJV100-160 · RasterLink",
-        "precioM2": 68000,
+        "precio": 68000,
         "capas": [
           "elegir"
         ],
@@ -186,13 +184,13 @@
           "Brillo: barniz brillante sobre el diseño (área 95 × 95 cm)",
           "Eliges una de las dos capas"
         ],
-        "precioPequenoM2": 98000
+        "precioPequeno": 98000
       },
       {
         "id": "uv2",
         "nombre": "Vinilo UV + blanco + brillo",
         "maquina": "Mimaki UJV100-160 · RasterLink",
-        "precioM2": 92000,
+        "precio": 92000,
         "capas": [
           "blanco",
           "brillo"
@@ -202,7 +200,7 @@
           "Máximo impacto visual",
           "Montaje de 145 × 55 cm"
         ],
-        "precioPequenoM2": 122000
+        "precioPequeno": 122000
       }
     ],
     "aclaraciones": [
@@ -210,10 +208,10 @@
       "Medio corte (semicorte): se corta solo el vinilo y los stickers quedan en la planilla. Corte total: cada pieza sale suelta.",
       "Entre diseños se dejan mínimo 4 mm de separación. Los diseños rectangulares (corte recto) pueden ir unidos, compartiendo la línea de corte.",
       "Área máxima de impresión: 95 × 95 cm a color o con brillo; 145 × 55 cm con base blanca.",
-      "Piezas pequeñas (menores de 3 cm) tienen tarifa especial por la dificultad del corte.",
+      "Si el montaje tiene piezas pequeñas (menores de 3 cm), todo el pliego pasa a la tarifa de corte pequeño por la dificultad del corte.",
       "Diseños con partes muy delgadas o detalles menores a 2 mm pueden no cortarse bien.",
       "El color en pantalla es una referencia. Puede variar ligeramente respecto al resultado impreso.",
-      "El precio se calcula por m² del montaje (ancho usado × largo), con un mínimo de 0,1 m². IVA no incluido.",
+      "Se cobra el pliego completo aunque no lo llenes: 95 × 95 cm a color o con brillo, 145 × 55 cm con base blanca. Aprovecha el espacio libre agregando más diseños. IVA no incluido.",
       "La cotización es un estimado. Queda sujeta a revisión del arte final por parte del taller.",
       "Si el diseño requiere ajustes, montaje o corrección de arte, se cobra diseño adicional."
     ],
@@ -226,6 +224,10 @@
       "largoMaxCm": 55
     },
     "piezaPequenaCm": 3,
-    "rectanguloCobertura": 0.97
+    "rectanguloCobertura": 0.97,
+    "marcas": {
+      "ladoCm": 0.5,
+      "bordeCm": 0.5
+    }
   }
 }
