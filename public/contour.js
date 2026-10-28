@@ -140,18 +140,70 @@
     const mask = new Uint8Array(W * H);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (alpha[y * w + x] >= threshold) mask[(y + pad) * W + x + pad] = 1;
     const dist = distanceSq(mask, W, H);
-    const grown = new Uint8Array(W * H);
-    const r2 = r * r;
-    for (let i = 0; i < W * H; i++) grown[i] = dist[i] <= r2 ? 1 : 0;
-    let loops = traceLoops(grown, W, H).filter((l) => area(l) > 0); // solo contornos exteriores
-    loops = loops.filter((l, i) => !loops.some((o, j) => j !== i && area(o) > area(l) && inside(l[0], o)));
-    return loops
-      .filter((l) => area(l) > 4)
-      .map((l) => simplify(smooth(l, 2), 0.35).map(([x, y]) => [(x - pad) / pxPerCm, (y - pad) / pxPerCm]));
+    // Campo de distancia en los centros de los píxeles; la línea de corte es la curva de nivel a r del borde
+    // del diseño (r + 0,5 px desde el centro del último píxel sólido), trazada con precisión subpíxel.
+    const level = r + 0.5;
+    const f = new Float32Array(W * H);
+    for (let i = 0; i < W * H; i++) f[i] = Math.sqrt(dist[i]) - level;
+    let loops = isoLoops(f, W, H).map((l) => l.map(([x, y]) => [x + 0.5, y + 0.5]));
+    // Solo los contornos de afuera: se descartan huecos e islas dentro de otros contornos.
+    loops = loops.filter((l) => Math.abs(area(l)) > 4);
+    loops = loops.filter((l, i) => !loops.some((o, j) => j !== i && Math.abs(area(o)) > Math.abs(area(l)) && inside(l[0], o)));
+    return loops.map((l) => {
+      const p = area(l) < 0 ? l.slice().reverse() : l; // mismo sentido para todos
+      return simplify(p, 0.12).map(([x, y]) => [(x - pad) / pxPerCm, (y - pad) / pxPerCm]);
+    });
+  }
+
+  // Curvas de nivel f = 0 (marching squares con interpolación lineal). f < 0 es adentro.
+  // Devuelve lazos cerrados en coordenadas de la grilla de muestras.
+  function isoLoops(f, W, H) {
+    const pt = new Map(); // id de arista -> punto
+    const next = new Map(); // id de arista -> id de arista siguiente
+    const hId = (x, y) => (y * W + x) * 2, vId = (x, y) => (y * W + x) * 2 + 1;
+    const hPt = (x, y) => { const a = f[y * W + x], b = f[y * W + x + 1]; return [x + a / (a - b), y]; };
+    const vPt = (x, y) => { const a = f[y * W + x], b = f[(y + 1) * W + x]; return [x, y + a / (a - b)]; };
+    const link = (e1, p1, e2, p2) => { pt.set(e1, p1); pt.set(e2, p2); next.set(e1, e2); };
+    for (let y = 0; y < H - 1; y++) {
+      for (let x = 0; x < W - 1; x++) {
+        const a = f[y * W + x], b = f[y * W + x + 1], c = f[(y + 1) * W + x + 1], d = f[(y + 1) * W + x];
+        const k = (a < 0 ? 8 : 0) | (b < 0 ? 4 : 0) | (c < 0 ? 2 : 0) | (d < 0 ? 1 : 0);
+        if (k === 0 || k === 15) continue;
+        const T = [hId(x, y), () => hPt(x, y)], R = [vId(x + 1, y), () => vPt(x + 1, y)];
+        const B = [hId(x, y + 1), () => hPt(x, y + 1)], L = [vId(x, y), () => vPt(x, y)];
+        // Cada segmento va con el interior a la izquierda, para poder encadenarlos.
+        const seg = (u, v) => link(u[0], u[1](), v[0], v[1]());
+        switch (k) {
+          case 1: seg(L, B); break;
+          case 2: seg(B, R); break;
+          case 3: seg(L, R); break;
+          case 4: seg(R, T); break;
+          case 5: if ((a + b + c + d) / 4 < 0) { seg(L, T); seg(R, B); } else { seg(L, B); seg(R, T); } break;
+          case 6: seg(B, T); break;
+          case 7: seg(L, T); break;
+          case 8: seg(T, L); break;
+          case 9: seg(T, B); break;
+          case 10: if ((a + b + c + d) / 4 < 0) { seg(T, R); seg(B, L); } else { seg(T, L); seg(B, R); } break;
+          case 11: seg(T, R); break;
+          case 12: seg(R, L); break;
+          case 13: seg(R, B); break;
+          case 14: seg(B, L); break;
+        }
+      }
+    }
+    const loops = [], seen = new Set();
+    for (const start of next.keys()) {
+      if (seen.has(start)) continue;
+      const loop = [];
+      let e = start;
+      while (e !== undefined && !seen.has(e)) { seen.add(e); loop.push(pt.get(e)); e = next.get(e); }
+      if (loop.length > 2) loops.push(loop);
+    }
+    return loops;
   }
 
   // Resolución recomendada para calcular el contorno de un diseño de wCm x hCm.
-  const contourPxPerCm = (wCm, hCm) => Math.min(40, 900 / Math.max(wCm, hCm));
+  const contourPxPerCm = (wCm, hCm) => Math.min(60, 1400 / Math.max(wCm, hCm));
 
   // Un diseño es "rectangular" si su parte visible llena casi todo su recuadro: lleva corte recto
   // y puede ir unido a otros rectangulares compartiendo la línea de corte.
