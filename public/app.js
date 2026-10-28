@@ -306,7 +306,7 @@ function relayout() {
       $('detail').textContent = over ? '' : q.detalle;
       $('limit').textContent = over
         ? (product === 'vinilo'
-          ? `No cabe en un pliego: necesitas ${rawLength.toFixed(0)} cm de largo y el pliego mide ${p.maxLen} cm. Reduce la medida o la cantidad, o escríbenos para pedir varios pliegos.`
+          ? `No cabe en un pliego: necesitas ${rawLength.toFixed(1)} cm de largo y el pliego mide ${p.maxLen} cm. Reduce la medida o la cantidad, o escríbenos para pedir varios pliegos.`
           : `El montaje mide ${rawLength.toFixed(0)} cm y el máximo en línea es ${p.maxLen} cm. Reduce medidas o cantidades, o escríbenos para cotizar por metros.`)
         : '';
       if (over) addWaLink($('limit'), 'Cotizar un pedido grande por WhatsApp', 'Hola, quiero cotizar un pedido grande de stickers.');
@@ -321,7 +321,9 @@ function relayout() {
       $('perDesign').innerHTML = '';
       if (designs.length > 1) designs.forEach((d, i) => {
         const li = document.createElement('li');
-        li.textContent = `Imagen ${i + 1}: ${boxes.filter((b) => b.d === i).length} u. de ${d.w.toFixed(1)} × ${d.h.toFixed(1)} cm`;
+        const mine = boxes.filter((b) => b.d === i);
+        const share = mine.reduce((a, b) => a + b.w * b.h, 0) / used; // parte del precio según el área que ocupa
+        li.textContent = `Imagen ${i + 1}: ${mine.length} u. de ${d.w.toFixed(1)} × ${d.h.toFixed(1)} cm · ≈ ${fmt(q.price * share)} (${fmt((q.price * share) / mine.length)} c/u)`;
         $('perDesign').appendChild(li);
       });
       renderFree(over ? null : { used: 100 - empty, freeLen: p.maxLen - rawLength });
@@ -666,6 +668,9 @@ function renderChips() {
     chip.setAttribute('aria-label', `Imagen ${i + 1}: ${d.w.toFixed(1)} × ${d.h.toFixed(1)} cm, ${d.qty} unidades${dpiOf(d) < DPI_WARN ? ', calidad baja' : ''}. Editar`);
     chip.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === chip) { e.preventDefault(); if (!busy) { select(i); focusChip(i); } } });
     chip.appendChild(d.thumb);
+    const num = document.createElement('span');
+    num.className = 'num'; num.textContent = i + 1; num.setAttribute('aria-hidden', 'true');
+    chip.appendChild(num);
     if (dpiOf(d) < DPI_WARN) {
       const w = document.createElement('span');
       w.className = 'badge'; w.textContent = '!'; w.title = 'Resolución baja';
@@ -690,6 +695,21 @@ function removeDesign(i) {
     select(Math.min(sel, designs.length - 1));
   }
   relayout();
+  fixOverflow();
+}
+
+// Si el montaje queda desbordado (el acomodo cambia al quitar una imagen), se reajustan
+// las cantidades que se llenaron automáticamente con «Llenar el espacio libre».
+function fixOverflow() {
+  if (!montage || !montage.over) return;
+  for (let i = designs.length - 1; i >= 0 && montage && montage.over; i--) {
+    const d = designs[i];
+    if (!d.filled) continue;
+    d.qty = 1;
+    d.qty = Math.max(1, maxFit(i));
+    relayout();
+  }
+  if (montage && !montage.over) say('Ajustamos las cantidades que se habían llenado automáticamente para que todo quepa.', 'warn');
 }
 
 function select(i) {
@@ -776,6 +796,7 @@ $('qty').addEventListener('input', () => {
   if (!(q >= 1)) { $('sizeWarn').textContent = 'La cantidad mínima es 1.'; return; }
   const max = P().maxPieces;
   cur().qty = Math.min(max, q);
+  cur().filled = false;
   $('sizeWarn').textContent = q > max ? `Máximo ${max} piezas por pedido.` : '';
   relayout();
 });
@@ -840,6 +861,7 @@ function fillFree() {
   if (!n) n = maxFit(sel) ? 1 : 0;
   if (!n) { relayout(); select(sel); say('Esta imagen no cabe junto con las demás en el área de impresión. Reduce su medida o la de las otras.', 'err'); return; }
   d.qty = n;
+  d.filled = true;
   select(sel);
   relayout();
   const changed = oldPrice && montage && $('price').textContent !== oldPrice;
@@ -1164,7 +1186,7 @@ $('send').addEventListener('click', async () => {
       ? `${config.vinilo.variantes.find((x) => x.id === variant).nombre} (1 pliego de ${P().W} × ${P().maxLen} cm)`
         : `${config.estilos.find((x) => x.id === style).nombre} (${P().W} × ${shownLength(montage.lengthCm)} cm)`;
     out.innerHTML = '';
-    out.append(`¡Pedido recibido! Referencia ${data.ref}`, document.createElement('br'),
+    out.append(`¡Pedido recibido! Referencia ${data.ref}.`, document.createElement('br'),
       `${montage.boxes.length} ${montage.boxes.length === 1 ? 'pieza' : 'piezas'} · ${prodName}`, document.createElement('br'),
       `Total estimado ${fmt(data.price)} + IVA` + (config.ivaPct ? ` (con IVA ${fmt(data.price * (1 + config.ivaPct / 100))})` : '') + '. ',
       `Revisamos tu archivo y te escribimos por WhatsApp${config.comercial && config.comercial.respuesta ? ' ' + config.comercial.respuesta : ''} para confirmar y coordinar el pago.`);
@@ -1188,6 +1210,15 @@ $('send').addEventListener('click', async () => {
 });
 
 $('again').addEventListener('click', () => location.reload());
+// Datos del cliente recordados en este navegador (solo comodidad; nada se envía hasta pedir).
+const KEEP = ['name', 'phone', 'bEmpresa', 'bNit', 'bCorreo'];
+try {
+  const saved = JSON.parse(localStorage.getItem('smith-datos') || '{}');
+  for (const id of KEEP) if (saved[id] && !$(id).value) $(id).value = saved[id];
+} catch {}
+for (const id of KEEP) $(id).addEventListener('change', () => {
+  try { localStorage.setItem('smith-datos', JSON.stringify(Object.fromEntries(KEEP.map((k) => [k, $(k).value])))); } catch {}
+});
 $('barGo').addEventListener('click', () => $('name').scrollIntoView({ behavior: 'smooth', block: 'center' }));
 // La barra se oculta cuando el cliente ya está en la parte de enviar.
 new IntersectionObserver(([e]) => { barHidden = e.isIntersecting; if (config) updateBar(); }).observe($('send'));
