@@ -116,7 +116,8 @@ setInterval(() => {
 // Una sola composición a la vez (cada una puede usar ~300 MB); el resto espera en cola.
 let queue = Promise.resolve();
 let waiting = 0;
-const MAX_WAITING = 3;
+// Pedidos en espera: guardan sus archivos en disco, no en memoria; solo uno se procesa a la vez.
+const MAX_WAITING = Number(process.env.MAX_WAITING) || 10;
 const exclusive = (fn) => {
   const run = queue.then(fn);
   queue = run.catch(() => {});
@@ -284,7 +285,10 @@ async function buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, outBase
     const d = meta.designs[i];
     let img = input(files[i]).ensureAlpha();
     const m = await input(files[i]).metadata();
-    if (m.width * m.height > 16e6) img = img.resize({ width: Math.round(m.width * Math.sqrt(16e6 / (m.width * m.height))) });
+    // Basta la resolución de impresión (config.dpi) a la medida real: menos memoria y PDF más liviano, sin perder calidad.
+    const tw = Math.min(m.width, Math.ceil((d.wCm / 2.54) * config.dpi)), th = Math.min(m.height, Math.ceil((d.hCm / 2.54) * config.dpi));
+    if (tw < m.width || th < m.height) img = img.resize(tw, th, { fit: 'fill' });
+    else if (m.width * m.height > 16e6) img = img.resize({ width: Math.round(m.width * Math.sqrt(16e6 / (m.width * m.height))) });
     const { data, info } = await img.raw().toBuffer({ resolveWithObject: true });
     const n = info.width * info.height;
     const solid = new Uint8Array(n);

@@ -494,36 +494,56 @@ function drawMontage() {
     ctx.strokeStyle = '#333'; ctx.lineWidth = 2 * k; ctx.setLineDash([]);
     ctx.strokeRect(0, 0, c.width, c.height);
   }
+  watermark(ctx, c.width, c.height, s);
+}
+
+// Marca de agua de la vista previa: el montaje es del taller y la vista no sirve como archivo de impresión.
+function watermark(ctx, W, H, s) {
+  const text = `${(config.contacto && config.contacto.negocio) || 'Smith Impresores'} · VISTA PREVIA`;
+  const size = Math.max(14, 2.2 * s);
+  ctx.save();
+  ctx.font = `700 ${size}px system-ui, sans-serif`;
+  ctx.fillStyle = 'rgba(26,26,26,.13)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(text).width + size * 3, th = size * 5;
+  ctx.translate(W / 2, H / 2); ctx.rotate(-Math.PI / 6);
+  const R = Math.hypot(W, H) / 2 + tw;
+  for (let y = -R, row = 0; y < R; y += th, row++) {
+    for (let x = -R + (row % 2) * tw / 2; x < R; x += tw) ctx.fillText(text, x, y);
+  }
+  ctx.restore();
 }
 
 // Vista ampliada del montaje (pantalla completa; tocar alterna ajustar / tamaño real).
 function openZoom() {
   if (!montage) return;
   if (document.documentElement.classList.contains('embed')) {
-    // Dentro de otra página la vista a pantalla completa quedaría tapada: se abre en una pestaña nueva.
-    const w = window.open('', '_blank'); // se abre dentro del gesto del usuario para que no lo bloqueen
-    $('montage').toBlob((blob) => {
-      if (!blob) { if (w) w.close(); return; }
-      const url = URL.createObjectURL(blob);
-      if (w) w.location = url; else $('sizeWarn').textContent = 'Tu navegador bloqueó la ventana. Permite ventanas emergentes para ver el montaje en grande.';
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    }, 'image/png');
+    // Dentro de otra página la pantalla completa quedaría tapada: se amplía en el mismo lugar (nunca como imagen descargable).
+    const big = $('montageBox').classList.toggle('big');
+    $('btnZoom').textContent = big ? 'Ver más pequeño' : 'Ver en grande';
     return;
   }
-  $('zoomImg').src = $('montage').toDataURL('image/png');
+  // Copia en un lienzo (no en una imagen) para que no se pueda guardar con clic derecho o pulsación larga.
+  const z = $('zoomImg'), m = $('montage');
+  z.width = m.width; z.height = m.height;
+  z.getContext('2d').drawImage(m, 0, 0);
   $('zoomImg').classList.remove('real');
   $('zoom').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
 }
 function closeZoom() {
   $('zoom').classList.add('hidden');
-  $('zoomImg').removeAttribute('src');
+  $('zoomImg').width = 1; $('zoomImg').height = 1; // libera memoria
   document.body.style.overflow = '';
 }
 $('btnZoom').addEventListener('click', openZoom);
 $('montage').addEventListener('click', openZoom);
 $('zoomClose').addEventListener('click', closeZoom);
 $('zoomImg').addEventListener('click', () => $('zoomImg').classList.toggle('real'));
+for (const id of ['montage', 'zoomImg']) {
+  $(id).addEventListener('contextmenu', (e) => e.preventDefault());
+  $(id).addEventListener('dragstart', (e) => e.preventDefault());
+}
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeZoom(); });
 let resizeTimer;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (montage) drawMontage(); }, 200); });
@@ -1006,8 +1026,15 @@ $('send').addEventListener('click', async () => {
       accepted: true
     }));
     let res;
-    try { res = await fetch('/api/orders', { method: 'POST', body: fd }); }
-    catch { throw new Error('No hay conexión con el servidor. Revisa tu internet e intenta de nuevo.'); }
+    // Si el taller está ocupado (503) se reintenta solo, sin que el cliente pierda su pedido.
+    for (let intento = 1; ; intento++) {
+      try { res = await fetch('/api/orders', { method: 'POST', body: fd }); }
+      catch { throw new Error('No hay conexión con el servidor. Revisa tu internet e intenta de nuevo.'); }
+      if (res.status !== 503 || intento >= 8) break;
+      const wait = Math.min(30, 5 * intento);
+      out.textContent = `Hay varios pedidos en fila. Reintentamos en ${wait} s (intento ${intento + 1} de 8)… no cierres la página.`;
+      await new Promise((r) => setTimeout(r, wait * 1000));
+    }
     let data = {};
     try { data = await res.json(); } catch {}
     if (!res.ok) throw new Error(data.error || `El servidor no pudo recibir el pedido (código ${res.status}). Intenta de nuevo en un momento.`);

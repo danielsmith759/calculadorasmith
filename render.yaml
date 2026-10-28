@@ -14,6 +14,9 @@ services:
       # Usuarios del panel: "usuario:clave,usuario2:clave2". Render la pide al crear el servicio.
       - key: ADMIN_USERS
         sync: false
+      # Menos fragmentación de memoria con sharp/libvips (el plan gratis tiene 512 MB).
+      - key: MALLOC_ARENA_MAX
+        value: 2
       - key: NODE_VERSION
         value: 22
       # Dominios que pueden incrustar el cotizador, separados por coma: https://tuweb.com

@@ -82,8 +82,8 @@ td a, td button { width: auto; display: inline-block; padding: 6px 10px; font-si
 .zoom > button { width: auto; align-self: flex-end; padding: 8px 18px; }
 .zoom > p { margin: 0; }
 .zoomScroll { flex: 1; overflow: auto; text-align: center; }
-.zoomScroll img { max-width: 100%; max-height: 100%; background: #fff; cursor: zoom-in; box-shadow: 0 1px 6px rgba(0,0,0,.15); }
-.zoomScroll img.real { max-width: none; max-height: none; width: auto; cursor: zoom-out; }
+.zoomScroll canvas { max-width: 100%; max-height: 100%; background: #fff; cursor: zoom-in; box-shadow: 0 1px 6px rgba(0,0,0,.15); }
+.zoomScroll canvas.real { max-width: none; max-height: none; width: auto; cursor: zoom-out; }
 .fitWrap { overflow-x: auto; }
 table.fit td, table.fit th { padding: 8px 6px; font-size: 13.5px; }
 table.fit tbody tr { cursor: pointer; }
@@ -139,6 +139,10 @@ html.embed body { padding: 0; background: transparent; }
 html.embed .contenedor { box-shadow: none; border: none; max-width: none; padding: 12px; }
 html.embed header .logo { display: none; }
 ul.perDesign { margin: 6px 0; padding-left: 18px; }
+/* El montaje no se puede seleccionar, arrastrar ni guardar con pulsación larga. */
+.montage canvas, .zoomScroll canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.montage.big { max-height: 85vh; overflow: auto; }
+.montage.big canvas { max-width: none; max-height: none; width: auto; cursor: default; }
 /* Cotización impresa: solo el montaje, el precio y la confirmación. */
 @media print {
   body { background: #fff; padding: 0; }
@@ -146,7 +150,7 @@ ul.perDesign { margin: 6px 0; padding-left: 18px; }
   .calcLink, .products, #styles, #styleNote, #vinylOpts, .upload, #fileHint, #editor, .montageBar button, #terms, #comercial ~ *:not(#result):not(footer),
   h2:has(+ #terms), button, details, label, input, textarea, .trust { display: none !important; }
   #quote, #result, footer.info { display: block !important; }
-  .montage canvas { max-height: 60vh; box-shadow: none; }
+  .montage, .montageBar, #montageNote, #freeInfo { display: none !important; } /* el montaje no se imprime */
   a.wa { display: none !important; }
 }
 /* Calculadora: productos compactos en 2 columnas también en celular. */
