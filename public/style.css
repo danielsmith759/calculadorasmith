@@ -20,8 +20,11 @@ h2 .n { flex: none; width: 30px; height: 30px; border-radius: 50%; background: v
 @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
 label { display: block; margin-top: 12px; font-size: 0.875rem; font-weight: 550; }
 input, textarea, button, select { width: 100%; padding: 11px 12px; margin: 6px 0; border-radius: 10px; font-size: 1rem; font-family: inherit; }
-input, textarea, select { background: var(--surface); color: var(--text); border: 1px solid #CFCCC4; }
-input:focus, textarea:focus, select:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(255,215,0,.55); }
+input, textarea, select { background: var(--surface); color: var(--text); border: 1px solid #8A877F; }
+input:focus, textarea:focus, select:focus { outline: 3px solid var(--ink); outline-offset: 1px; border-color: var(--ink); box-shadow: 0 0 0 6px rgba(255,215,0,.55); }
+.upload:has(+ input:focus-visible) { outline: 3px solid var(--ink); outline-offset: 3px; }
+summary:focus-visible, tr[role=button]:focus-visible, .chip:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.montageBar button, .calcLink a { min-height: 44px; display: inline-flex; align-items: center; }
 input::placeholder, textarea::placeholder { color: #9A978F; }
 input[type=number] { max-width: 220px; }
 .row input[type=number] { max-width: none; }

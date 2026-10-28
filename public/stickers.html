@@ -15,7 +15,7 @@
   <script src="embed-child.js"></script>
 </head>
 <body>
-<div class="contenedor">
+<main class="contenedor">
   <header>
     <img src="logo.png" alt="Smith Impresores" class="logo">
     <h1>¿Cuántos stickers caben y cuánto vale cada uno?</h1>
@@ -51,23 +51,23 @@
     </div>
     <div>
       <div class="muted" id="cwhere"></div>
-      <div class="price" id="ccount">—</div>
+      <div class="price" id="ccount" aria-live="polite">—</div>
       <div class="muted" id="cunit"></div>
-      <div class="msg ok big hidden" id="cqtyRes"></div>
+      <div class="msg ok big hidden" id="cqtyRes" aria-live="polite"></div>
       <button id="ccopy" type="button" class="sec">Copiar cotización para WhatsApp</button>
-      <div class="muted" id="ccopied"></div>
+      <div class="muted" id="ccopied" aria-live="polite"></div>
     </div>
   </div>
 
   <h2>Así quedan</h2>
-  <div class="montage" id="cbox"><canvas id="cprev"></canvas></div>
+  <div class="montage" id="cbox"><canvas id="cprev" role="img" aria-label="Vista de cómo quedan los stickers acomodados"></canvas></div>
   <p class="muted" id="cnote"></p>
 
   <h2>Otras medidas</h2>
   <p class="muted">Misma proporción del sticker. Toca una medida para usarla.</p>
   <table class="fit" id="ctable"></table>
   <p class="muted">IVA no incluido. Cantidades por acomodo en filas y columnas, incluida la franja de 0,8 cm con el nombre del cliente.</p>
-</div>
+</main>
 <script src="pricing.js"></script>
 <script src="stickers.js"></script>
 </body>

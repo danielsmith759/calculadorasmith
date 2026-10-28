@@ -548,7 +548,9 @@ function openZoom() {
   document.body.style.overflow = 'hidden';
 }
 function closeZoom() {
+  if ($('zoom').classList.contains('hidden')) return;
   $('zoom').classList.add('hidden');
+  $('btnZoom').focus();
   $('zoomImg').width = 1; $('zoomImg').height = 1; // libera memoria
   document.body.style.overflow = '';
 }
@@ -560,7 +562,11 @@ for (const id of ['montage', 'zoomImg']) {
   $(id).addEventListener('contextmenu', (e) => e.preventDefault());
   $(id).addEventListener('dragstart', (e) => e.preventDefault());
 }
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeZoom(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeZoom();
+  // Con la vista ampliada abierta el foco se queda en ella.
+  if (e.key === 'Tab' && !$('zoom').classList.contains('hidden')) { e.preventDefault(); $('zoomClose').focus(); }
+});
 let resizeTimer;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (montage) drawMontage(); }, 200); });
 
@@ -576,6 +582,8 @@ function updateBar() {
 let barHidden = false;
 
 function renderStyles() {
+  const keepFocus = $('styles').contains(document.activeElement);
+  setTimeout(() => { if (keepFocus) { const r = $('styles').querySelector('input:checked'); if (r) r.focus(); } });
   const L = montage && !montage.over ? montage.lengthCm : null;
   $('styles').innerHTML = '';
   $('vinylOpts').classList.toggle('hidden', product !== 'vinilo');
@@ -644,13 +652,19 @@ function makeThumb(d) {
   d.thumb = t;
 }
 
+const focusChip = (i) => { const c = $('chips').children[i]; if (c) c.focus(); };
 function renderChips() {
+  const hadFocus = $('chips').contains(document.activeElement) ? sel : -1;
   $('chips').innerHTML = '';
   const low = designs.some((d) => d.design && dpiOf(d) < DPI_WARN);
   designs.forEach((d, i) => {
     const chip = document.createElement('div');
     chip.className = 'chip' + (i === sel ? ' sel' : '');
     chip.title = `${d.w.toFixed(1)} × ${d.h.toFixed(1)} cm · ${d.qty} u.`;
+    chip.tabIndex = 0; chip.setAttribute('role', 'button');
+    chip.setAttribute('aria-pressed', String(i === sel));
+    chip.setAttribute('aria-label', `Imagen ${i + 1}: ${d.w.toFixed(1)} × ${d.h.toFixed(1)} cm, ${d.qty} unidades${dpiOf(d) < DPI_WARN ? ', calidad baja' : ''}. Editar`);
+    chip.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === chip) { e.preventDefault(); if (!busy) { select(i); focusChip(i); } } });
     chip.appendChild(d.thumb);
     if (dpiOf(d) < DPI_WARN) {
       const w = document.createElement('span');
@@ -658,12 +672,13 @@ function renderChips() {
       chip.appendChild(w);
     }
     const x = document.createElement('button');
-    x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.setAttribute('aria-label', 'Quitar imagen');
+    x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.setAttribute('aria-label', `Quitar imagen ${i + 1}`);
     x.addEventListener('click', (ev) => { ev.stopPropagation(); if (!busy && confirm('¿Quitar esta imagen del pedido?')) removeDesign(i); });
     chip.appendChild(x);
     chip.addEventListener('click', () => { if (!busy) select(i); });
     $('chips').appendChild(chip);
   });
+  if (hadFocus >= 0) focusChip(hadFocus);
   $('fileHint').textContent = designs.length ? `${designs.length} imagen(es). Toca una para editarla.${low ? ' El «!» indica calidad baja para la medida elegida.' : ''}` : '';
 }
 
@@ -680,6 +695,7 @@ function removeDesign(i) {
 function select(i) {
   sel = i;
   const d = cur();
+  $('btnUndo').disabled = !(d && d.undo);
   $('editor').classList.remove('hidden');
   say('');
   $('sizeWarn').textContent = '';
@@ -737,7 +753,7 @@ function refreshDesign(d = cur()) {
 
 function setBusy(on) {
   busy = on;
-  for (const id of ['btnColor', 'btnReset', 'file', 'w', 'h', 'qty', 'shape', 'shapeColor', 'shapePad', 'gap', 'offset', 'btnFill']) if ($(id)) $(id).disabled = on;
+  for (const id of ['btnColor', 'btnReset', 'btnSpecks', 'file', 'w', 'h', 'qty', 'shape', 'shapeColor', 'shapePad', 'gap', 'offset', 'btnFill']) if ($(id)) $(id).disabled = on;
   updateSend();
 }
 
@@ -795,6 +811,10 @@ function renderFit() {
       `<td>${r.n >= p.maxPieces ? `${r.n} (máx.)` : r.n}</td><td>${fmt(sheetPrice(Math.max(r.w, r.h)) / r.n)}</td></tr>`).join('')}</tbody></table></div>
     <p class="muted">El valor c/u es llenando ${product === 'vinilo' ? 'el pliego' : 'el metro'} con esa medida. Tu precio real por unidad aparece junto al total del montaje. IVA no incluido.</p></details>`;
   box.querySelector('details').addEventListener('toggle', (e) => { box.dataset.open = e.target.open ? '1' : ''; });
+  box.querySelectorAll('tr[data-s]').forEach((tr) => {
+    tr.tabIndex = 0; tr.setAttribute('role', 'button');
+    tr.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tr.click(); } });
+  });
   box.querySelectorAll('tr[data-s]').forEach((tr) => tr.addEventListener('click', () => {
     if (busy) return;
     const r = rows.find((x) => x.S === Number(tr.dataset.s));
@@ -855,7 +875,7 @@ $('offset').addEventListener('input', () => {
 function setProduct(p) {
   const changed = product !== p || gapCm == null;
   product = p;
-  for (const b of document.querySelectorAll('[data-product]')) b.classList.toggle('sel', b.dataset.product === p);
+  for (const b of document.querySelectorAll('[data-product]')) { b.classList.toggle('sel', b.dataset.product === p); b.setAttribute('aria-pressed', String(b.dataset.product === p)); }
   const q = P();
   if (changed) {
     gapCm = q.gapMin;
@@ -1005,6 +1025,7 @@ $('btnColor').addEventListener('click', () => {
     }
   }
   if (!count) { say('No se encontró fondo de ese color. Sube la «Sensibilidad» en Ajustes avanzados o toca el fondo para elegir el color.', 'err'); return; }
+  saveUndo(d);
   ctx.putImageData(img, 0, 0);
   d.cleaned = true;
   d.lastBg = bg;
@@ -1012,7 +1033,64 @@ $('btnColor').addEventListener('click', () => {
     say('Se borró toda la imagen. Pulsa «Restaurar original» y baja la «Sensibilidad» en Ajustes avanzados.', 'err');
     return;
   }
-  say(`Fondo quitado (${Math.round((count / (width * height)) * 100)}% de la imagen). Si quedan restos, sube la «Sensibilidad» (Ajustes avanzados) y repite.`, 'ok');
+  const pct = (count / (width * height)) * 100;
+  say(`Fondo quitado (${pct < 1 ? 'menos del 1' : Math.round(pct)}% de la imagen). Si quedan puntos o rayas sueltas, usa «Borrar restos sueltos».`, 'ok');
+});
+
+// Un nivel de deshacer (copia de la imagen de trabajo antes del último cambio).
+function saveUndo(d) {
+  const c = document.createElement('canvas');
+  c.width = d.working.width; c.height = d.working.height;
+  c.getContext('2d').drawImage(d.working, 0, 0);
+  d.undo = { canvas: c, cleaned: d.cleaned };
+  $('btnUndo').disabled = false;
+}
+$('btnUndo').addEventListener('click', () => {
+  const d = cur();
+  if (!d || !d.undo || busy) return;
+  const ctx = d.working.getContext('2d');
+  ctx.clearRect(0, 0, d.working.width, d.working.height);
+  ctx.drawImage(d.undo.canvas, 0, 0);
+  d.cleaned = d.undo.cleaned; d.undo = null;
+  $('btnUndo').disabled = true;
+  refreshDesign(d);
+  say('Se deshizo el último cambio.', 'ok');
+});
+
+// Borra manchas, rayas y puntos sueltos: se conservan solo las partes grandes del diseño
+// (también evita líneas de corte innecesarias alrededor de cada resto).
+$('btnSpecks').addEventListener('click', () => {
+  const d = cur();
+  if (!d || busy) return;
+  const { width: W, height: H } = d.working;
+  const ctx = d.working.getContext('2d');
+  const img = ctx.getImageData(0, 0, W, H), px = img.data;
+  const label = new Int32Array(W * H).fill(-1), sizes = [];
+  const stack = [];
+  for (let p0 = 0; p0 < W * H; p0++) {
+    if (label[p0] >= 0 || px[p0 * 4 + 3] < 64) continue;
+    const id = sizes.length; let n = 0;
+    label[p0] = id; stack.push(p0);
+    while (stack.length) {
+      const p = stack.pop(); n++;
+      const x = p % W, y = (p - x) / W;
+      for (const q of [x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, y > 0 ? p - W : -1, y < H - 1 ? p + W : -1]) {
+        if (q >= 0 && label[q] < 0 && px[q * 4 + 3] >= 64) { label[q] = id; stack.push(q); }
+      }
+    }
+    sizes.push(n);
+  }
+  if (sizes.length < 2) { say('No hay restos sueltos: tu diseño ya es una sola pieza.', 'ok'); return; }
+  const biggest = Math.max(...sizes);
+  const keep = sizes.map((n) => n >= biggest * 0.02); // restos de menos del 2% de la parte principal
+  const removed = keep.filter((k) => !k).length;
+  if (!removed) { say('No se encontraron restos pequeños para borrar.', 'ok'); return; }
+  saveUndo(d);
+  for (let p = 0; p < W * H; p++) if (px[p * 4 + 3] && (label[p] < 0 || !keep[label[p]])) px[p * 4 + 3] = 0;
+  ctx.putImageData(img, 0, 0);
+  d.cleaned = true;
+  refreshDesign(d);
+  say(`Se borraron ${removed} resto${removed === 1 ? '' : 's'} suelto${removed === 1 ? '' : 's'}. Si se borró algo que querías, pulsa «Deshacer».`, 'ok');
 });
 
 // Exporta cada diseño a su resolución real (el servidor lo lleva a la medida de impresión).
@@ -1099,6 +1177,7 @@ $('send').addEventListener('click', async () => {
       a.textContent = 'Escribirnos por WhatsApp con mi referencia';
       out.appendChild(a);
     }
+    out.tabIndex = -1; out.focus({ preventScroll: true });
     out.scrollIntoView({ behavior: 'smooth', block: 'center' });
   } catch (e) {
     out.className = 'msg err';

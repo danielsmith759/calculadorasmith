@@ -15,7 +15,7 @@
   <script src="embed-child.js"></script>
 </head>
 <body>
-<div class="contenedor">
+<main class="contenedor">
   <header>
     <img src="logo.png" alt="Smith Impresores" class="logo">
     <h1>Cotiza tus stickers y calcomanías en línea</h1>
@@ -27,8 +27,8 @@
 
   <h2><span class="n">1</span>¿Qué quieres imprimir?</h2>
   <div class="products">
-    <button type="button" class="product" data-product="dtf"><b>Calcomanías DTF UV</b><br><span>Para termos, vasos, cuadernos y superficies rígidas. Se pegan sin cortar.</span></button>
-    <button type="button" class="product" data-product="vinilo"><b>Stickers de vinilo</b><br><span>Cortados a la forma de tu diseño (silueta, círculo o cuadro), listos para despegar.</span></button>
+    <button type="button" class="product" data-product="dtf" aria-pressed="false"><b>Calcomanías DTF UV</b><br><span>Para termos, vasos, cuadernos y superficies rígidas. Se pegan sin cortar.</span></button>
+    <button type="button" class="product" data-product="vinilo" aria-pressed="false"><b>Stickers de vinilo</b><br><span>Cortados a la forma de tu diseño (silueta, círculo o cuadro), listos para despegar.</span></button>
   </div>
   <p><b>Elige el tipo</b></p>
   <div class="styles" id="styles"></div>
@@ -50,7 +50,7 @@
   <div id="editor" class="hidden">
     <div class="grid">
       <div>
-        <div class="preview"><canvas id="preview"></canvas></div>
+        <div class="preview"><canvas id="preview" role="img" aria-label="Vista previa de la imagen seleccionada. Toca el fondo para elegir el color a quitar."></canvas></div>
         <p class="muted">Los cuadritos grises son zonas transparentes (no se imprimen). Para quitar el fondo: 1) toca el fondo en la imagen, 2) pulsa «Quitar color de fondo». <span id="pickSwatch" class="swatch hidden"></span></p>
         <div class="msg warn" id="bgWarn"></div>
         <button id="btnColor" type="button">Quitar color de fondo</button>
@@ -60,6 +60,10 @@
           <input type="range" id="tol" min="5" max="120" value="30">
           <label class="check"><input type="checkbox" id="everywhere"> Quitar ese color en toda la imagen (también dentro de letras y figuras)</label>
         </details>
+        <div class="row">
+          <button id="btnSpecks" type="button" class="sec">Borrar restos sueltos</button>
+          <button id="btnUndo" type="button" class="sec" disabled>Deshacer</button>
+        </div>
         <button id="btnReset" type="button" class="sec">Restaurar original</button>
         <label for="shape"><b>Forma del sticker</b></label>
         <select id="shape">
@@ -96,7 +100,7 @@
   <div id="quote" class="hidden">
     <h2><span class="n">3</span>Tu montaje y precio</h2>
     <div class="montageBar"><span class="muted" id="stats"></span><button id="btnZoom" type="button" class="sec">Ver en grande</button></div>
-    <div class="montage" id="montageBox"><canvas id="montage" title="Toca para ver en grande"></canvas></div>
+    <div class="montage" id="montageBox"><canvas id="montage" title="Toca para ver en grande" role="img" aria-label="Vista previa del montaje con tus imágenes acomodadas"></canvas></div>
     <p class="muted" id="montageNote"></p>
     <div id="freeInfo" class="hidden"><div class="bar"><div id="freeBar"></div></div><p class="ok" id="freeText"></p></div>
     <div class="grid">
@@ -147,8 +151,8 @@
     <button id="again" type="button" class="sec hidden">Hacer otro pedido</button>
   </div>
   <footer class="info" id="footer"></footer>
+</main>
   <div id="stickyBar" class="stickyBar hidden"><span id="barPrice"></span><button id="barGo" type="button">Hacer pedido</button></div>
-</div>
 <script src="pricing.js"></script>
 <script src="contour.js"></script>
 <script type="module" src="app.js"></script>

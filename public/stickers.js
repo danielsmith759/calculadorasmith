@@ -44,6 +44,7 @@
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'product' + (p === prod ? ' sel' : '');
+      b.setAttribute('aria-pressed', String(p === prod));
       b.innerHTML = `<b>${p.name}</b><br><span>${p.kind === 'dtf' ? `Calcomanía sin corte · por metro de ${config.anchoRolloCm} cm de ancho` : `Sticker cortado · pliego de ${config.vinilo.areaColor.anchoCm} × ${config.vinilo.areaColor.largoMaxCm} cm`}</span>`;
       b.addEventListener('click', () => setProduct(p));
       $('calcProducts').appendChild(b);
@@ -168,6 +169,10 @@
     const A = area();
     $('ctable').innerHTML = `<thead><tr><th>Medida</th><th>Caben por ${A.unitLabel}</th><th>Valor c/u</th></tr></thead><tbody>${rows.map((r, i) =>
       `<tr data-i="${i}"><td>${cm(r.w)} × ${cm(r.h)} cm</td><td>${r.n.toLocaleString('es-CO')}</td><td>${fmt(basePrice(Math.max(r.w, r.h)) / r.n)}</td></tr>`).join('')}</tbody>`;
+    $('ctable').querySelectorAll('tr[data-i]').forEach((tr) => {
+      tr.tabIndex = 0; tr.setAttribute('role', 'button');
+      tr.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tr.click(); } });
+    });
     $('ctable').querySelectorAll('tr[data-i]').forEach((tr) => tr.addEventListener('click', () => {
       const r = rows[Number(tr.dataset.i)];
       $('cw').value = Math.round(r.w * 10) / 10; $('ch').value = Math.round(r.h * 10) / 10;
