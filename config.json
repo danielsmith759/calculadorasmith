@@ -202,6 +202,18 @@
   },
   "contacto": {
     "whatsapp": "",
-    "mensaje": "Hola, hice el pedido {ref} en la web de Smith Impresores."
+    "mensaje": "Hola, hice el pedido {ref} en la web de Smith Impresores.",
+    "negocio": "Smith Impresores",
+    "horario": "",
+    "correo": "",
+    "direccion": ""
+  },
+  "ivaPct": 19,
+  "comercial": {
+    "plazo": "",
+    "pago": "",
+    "factura": "",
+    "envio": "",
+    "respuesta": ""
   }
 }

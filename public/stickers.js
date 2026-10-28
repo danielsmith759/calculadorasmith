@@ -44,7 +44,7 @@
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'product' + (p === prod ? ' sel' : '');
-      b.innerHTML = `<b>${p.name}</b><br><span>${p.kind === 'dtf' ? 'Por metro, 58 cm de ancho' : 'Por pliego de 95 × 95 cm'}</span>`;
+      b.innerHTML = `<b>${p.name}</b><br><span>${p.kind === 'dtf' ? `Calcomanía sin corte · por metro de ${config.anchoRolloCm} cm de ancho` : `Sticker cortado · pliego de ${config.vinilo.areaColor.anchoCm} × ${config.vinilo.areaColor.largoMaxCm} cm`}</span>`;
       b.addEventListener('click', () => setProduct(p));
       $('calcProducts').appendChild(b);
     }
@@ -101,7 +101,7 @@
 
     const qty = Math.min(1e5, Math.floor(Number($('cqty').value)));
     if (qty >= 1) {
-      let line;
+      let line, big;
       if (prod.kind === 'dtf') {
         // Largo mínimo de montaje para la cantidad pedida.
         let lo = 0, hi = 100000;
@@ -113,14 +113,19 @@
         const q = Pricing.quote(config, prod.id, len);
         line = `${qty.toLocaleString('es-CO')} stickers: montaje de ${A.W} × ${cm(len)} cm · ${fmt(q.price)} · ${fmt(q.price / qty)} c/u` +
           (len > 100 ? '. Pasa de 1 metro: se cotiza por metros.' : '');
+        big = [q.price / qty, q.price];
       } else {
         const sheets = Math.ceil(qty / n);
         const total = sheets * price;
         const spare = sheets * n - qty;
         line = `${qty.toLocaleString('es-CO')} stickers: ${sheets} pliego${sheets > 1 ? 's' : ''} · ${fmt(total)} · ${fmt(total / qty)} c/u` +
-          (spare ? `. Sobra espacio para ${spare} más sin pagar más.` : '');
+          (spare ? `. Te caben ${spare} más sin pagar más.` : '');
+        big = [total / qty, total];
       }
       $('cqtyRes').textContent = line;
+      // Con cantidad, la cifra principal es lo que paga el cliente por unidad.
+      $('ccount').textContent = `${fmt(big[0])} c/u`;
+      $('cunit').textContent = `Total ${fmt(big[1])} por ${qty.toLocaleString('es-CO')} stickers · caben ${n.toLocaleString('es-CO')} por ${A.unitLabel}${small ? ' (tarifa de corte pequeño, menos de 3 cm)' : ''}`;
       $('cqtyRes').classList.remove('hidden');
       quoteText += `\n${line}`;
     } else $('cqtyRes').classList.add('hidden');
@@ -165,12 +170,18 @@
     $('ctable').querySelectorAll('tr[data-i]').forEach((tr) => tr.addEventListener('click', () => {
       const r = rows[Number(tr.dataset.i)];
       $('cw').value = Math.round(r.w * 10) / 10; $('ch').value = Math.round(r.h * 10) / 10;
+      ratio = r.h / r.w;
       update();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }));
   }
 
-  for (const id of ['cw', 'ch', 'cgap', 'coff', 'cqty', 'cshape']) $(id).addEventListener('input', update);
+  let ratio = 1;
+  const keep = () => $('clock').checked && ratio > 0;
+  $('cw').addEventListener('input', () => { const w = Number($('cw').value); if (keep() && w > 0) $('ch').value = Math.round(w * ratio * 10) / 10; update(); });
+  $('ch').addEventListener('input', () => { const h = Number($('ch').value); if (keep() && h > 0) $('cw').value = Math.round((h / ratio) * 10) / 10; update(); });
+  $('clock').addEventListener('change', () => { ratio = Number($('ch').value) / Number($('cw').value) || 1; });
+  for (const id of ['cgap', 'coff', 'cqty', 'cshape']) $(id).addEventListener('input', update);
   $('ccopy').addEventListener('click', async () => {
     if (!quoteText) return;
     try { await navigator.clipboard.writeText(quoteText); $('ccopied').textContent = 'Copiado. Pégalo en WhatsApp.'; }

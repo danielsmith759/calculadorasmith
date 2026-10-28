@@ -8,7 +8,7 @@
   <meta name="description" content="Cuántos stickers caben por pliego o por metro y cuánto vale cada uno.">
   <meta property="og:title" content="Calculadora de stickers - Smith Impresores">
   <meta property="og:description" content="Cuántos stickers caben por pliego o por metro y cuánto vale cada uno.">
-  <meta name="theme-color" content="#1E1E1E">
+  <meta name="theme-color" content="#F6F5F1">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -18,13 +18,13 @@
 <div class="contenedor">
   <header>
     <img src="logo.png" alt="Smith Impresores" class="logo">
-    <h1>Calculadora de stickers</h1>
-    <p class="muted">Cuántos stickers caben y cuánto vale cada uno. Mismos precios y reglas del cotizador en línea.</p>
+    <h1>¿Cuántos stickers caben y cuánto vale cada uno?</h1>
+    <p class="muted">Escribe la medida de tu sticker y la cantidad. Mismos precios del cotizador en línea.</p>
   </header>
 
   <p class="muted center">¿Ya tienes tu diseño? <a href="index.html" data-int>Cotiza con tus imágenes y envía tu pedido</a>.</p>
 
-  <h2>Producto</h2>
+  <h2><span class="n">1</span>Producto</h2>
   <div class="products" id="calcProducts"></div>
 
   <div class="grid">
@@ -33,18 +33,19 @@
         <div><label for="cw">Ancho (cm)</label><input type="number" id="cw" min="0.5" step="0.1" value="5" inputmode="decimal"></div>
         <div><label for="ch">Alto (cm)</label><input type="number" id="ch" min="0.5" step="0.1" value="5" inputmode="decimal"></div>
       </div>
+      <label class="check"><input type="checkbox" id="clock" checked> Mantener la proporción entre ancho y alto</label>
       <div id="cutOpts">
-        <label for="cshape">Corte</label>
+        <label for="cshape">Forma del sticker</label>
         <select id="cshape">
-          <option value="silueta">Silueta o círculo (con margen de corte y separación)</option>
-          <option value="recto">Rectangular (corte recto, van unidos)</option>
+          <option value="silueta">Silueta, círculo o esquinas redondeadas</option>
+          <option value="recto">Rectangular (van unidos, corte recto)</option>
         </select>
-        <label for="coff">Margen de corte alrededor del diseño (mm)</label>
+        <label for="coff">Borde blanco alrededor del diseño (mm)</label>
         <input type="number" id="coff" step="0.5" inputmode="decimal">
       </div>
       <label for="cgap">Separación entre stickers (mm)</label>
       <input type="number" id="cgap" step="1" inputmode="numeric">
-      <label for="cqty">Cantidad que pide el cliente (opcional)</label>
+      <label for="cqty">¿Cuántos necesitas? (opcional)</label>
       <input type="number" id="cqty" min="1" step="1" placeholder="Ej. 500" inputmode="numeric">
       <div class="msg err" id="cwarn"></div>
     </div>

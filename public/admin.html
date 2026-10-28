@@ -41,7 +41,7 @@ async function load() {
     <tr>
       <td>${esc(o.id.slice(0, 8).toUpperCase())}</td>
       <td>${new Date(o.createdAt).toLocaleString('es-CO')}</td>
-      <td>${esc(o.name)}<br><span class="muted">${esc(o.phone)}${o.note ? ' · ' + esc(o.note) : ''}</span></td>
+      <td>${esc(o.name)}<br><span class="muted">${esc(o.phone)}${o.note ? ' · ' + esc(o.note) : ''}${o.billing ? '<br>Factura: ' + esc([o.billing.empresa, o.billing.nit && 'NIT ' + o.billing.nit, o.billing.correo].filter(Boolean).join(' · ')) : ''}</span></td>
       <td>${esc(o.style)}${o.product === 'vinilo' ? `<br><span class="muted">${o.cutType === 'total' ? 'Corte total' : 'Medio corte'} · margen ${Math.round(o.offsetCm * 100) / 10} mm${(o.capas || []).length ? ' · capas: ' + o.capas.map(esc).join(' + ') : ''}</span>` : ''}</td>
       <td>${o.product === 'vinilo' ? o.widthCm : 58} × ${o.lengthCm} cm<br><span class="muted">${o.pieces} pzas · ${o.emptyPct}% vacío${o.gapCm ? ' · sep. ' + Math.round(o.gapCm * 10) + ' mm' : ''}</span>${(o.items || []).map((p) =>
         `<br><span class="${p.dpi < 150 ? 'err' : 'muted'}">${p.qty}× ${p.wCm}×${p.hCm} cm · ${p.dpi} ppp${p.dpi < 150 ? ' (baja)' : ''}</span>`).join('')}</td>

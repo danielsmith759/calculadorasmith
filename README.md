@@ -44,6 +44,16 @@ npm install
 - En el plan gratis el servicio se "duerme" tras unos minutos sin uso (la primera visita tarda ~1 min) y los pedidos se pierden al reiniciar: descarga cada PNG apenas llegue.
 - Para clientes reales, usa un plan con disco persistente (variable `DATA_DIR` apuntando al disco).
 
+## Datos comerciales y de contacto (config.json)
+
+Se muestran solo los campos que llenes; vacíos no aparecen.
+
+- `contacto`: `negocio`, `horario`, `correo`, `direccion` (pie de página) y `whatsapp` (o la variable `WHATSAPP` en Render).
+- `comercial`: `plazo` (tiempo de producción), `pago` (formas de pago), `factura`, `envio` y `respuesta` (p. ej. "en menos de 2 horas hábiles"). Aparecen como "Condiciones del pedido" antes de los datos del cliente y en la confirmación.
+- `ivaPct`: porcentaje de IVA para mostrar el total con IVA (19). El precio cobrado sigue siendo sin IVA.
+
+El cliente puede pedir factura a nombre de una empresa (razón social, NIT, correo); el panel lo muestra en el pedido. Tras enviar puede guardar o imprimir la cotización en PDF.
+
 ## Ponerlo en tu web y que los clientes lleguen fácil
 
 Reemplaza `TU-APP` por la dirección donde publiques la app (por ejemplo `https://cotizador.tudominio.com`).

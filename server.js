@@ -46,7 +46,8 @@ if (process.env.ADMIN_USERS) {
   for (const pair of process.env.ADMIN_USERS.split(/[;,]/)) {
     const i = pair.indexOf(':');
     const user = pair.slice(0, i).trim().toLowerCase(), pass = pair.slice(i + 1);
-    if (/^[a-z0-9]{3,30}$/.test(user) && pass) {
+    if (!/^[a-z0-9]{3,30}$/.test(user)) console.warn(`ADMIN_USERS: usuario "${user}" ignorado (solo minúsculas y números, 3 a 30 caracteres)`);
+    else if (pass) {
       const salt = crypto.randomBytes(16).toString('hex');
       users[user] = { salt, hash: crypto.scryptSync(pass, salt, 32).toString('hex') };
     }
@@ -162,7 +163,7 @@ const { spots, ...viniloPublic } = config.vinilo;
 const publicConfig = {
   ...config,
   vinilo: { ...viniloPublic, variantes: config.vinilo.variantes.map(({ maquina, ...v }) => v) },
-  contacto: { whatsapp, mensaje: (config.contacto && config.contacto.mensaje) || '' }
+  contacto: { ...config.contacto, whatsapp }
 };
 app.get('/api/config', (req, res) => res.json(publicConfig));
 
@@ -348,6 +349,9 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
       const name = String(meta.name || '').trim().slice(0, 100);
       const phone = String(meta.phone || '').trim().slice(0, 40);
       const note = String(meta.note || '').trim().slice(0, 500);
+      // Datos de facturación opcionales (empresa).
+      const b = meta.billing && typeof meta.billing === 'object' ? meta.billing : {};
+      const billing = Object.fromEntries(['empresa', 'nit', 'correo'].map((k) => [k, String(b[k] || '').trim().slice(0, 120)]).filter(([, v]) => v));
       if (!name || !phone) fail('Nombre y teléfono son obligatorios.');
       if (meta.accepted !== true) fail('Debes aceptar las aclaraciones.');
       const vinyl = meta.product === 'vinilo';
@@ -402,7 +406,7 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
       const usedCm2 = boxes.reduce((s, b) => s + b.w * b.h, 0);
       const orders = loadOrders();
       orders.unshift({
-        id, name, phone, note,
+        id, name, phone, note, ...(Object.keys(billing).length ? { billing } : {}),
         product: vinyl ? 'vinilo' : 'dtf',
         style: vinyl ? P.variant.nombre : meta.style,
         files: vinyl ? ['pdf', 'svg'] : ['png'],

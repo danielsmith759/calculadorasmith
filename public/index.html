@@ -8,7 +8,7 @@
   <meta name="description" content="Cotiza DTF UV y vinilo con corte en línea: sube tu diseño, quita el fondo, mira el montaje y el precio.">
   <meta property="og:title" content="Cotizador DTF UV y Vinilo - Smith Impresores">
   <meta property="og:description" content="Cotiza DTF UV y vinilo con corte en línea: sube tu diseño, quita el fondo, mira el montaje y el precio.">
-  <meta name="theme-color" content="#1E1E1E">
+  <meta name="theme-color" content="#F6F5F1">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -18,45 +18,47 @@
 <div class="contenedor">
   <header>
     <img src="logo.png" alt="Smith Impresores" class="logo">
-    <h1>Cotizador DTF UV y Vinilo</h1>
-    <p class="muted">Sube tus diseños, quítales el fondo de color, ajusta las medidas y mira cómo queda el montaje y cuánto cuesta.</p>
+    <h1>Cotiza tus stickers y calcomanías en línea</h1>
+    <p class="muted">Sube tu logo o diseño, mira cómo queda el montaje y conoce el precio al instante.</p>
+    <ul class="trust"><li>Precio inmediato</li><li>Quitamos el fondo gratis</li><li>Revisamos tu archivo antes de imprimir</li></ul>
   </header>
 
-  <p class="muted center">¿Solo quieres saber cuántos stickers caben y cuánto vale cada uno? <a href="stickers.html" data-int>Usa la calculadora</a>.</p>
+  <div class="calcLink"><span>¿Solo quieres saber cuántos stickers caben y cuánto vale cada uno?</span><a href="stickers.html" data-int>Abrir calculadora →</a></div>
 
-  <h2>1. ¿Qué quieres imprimir?</h2>
+  <h2><span class="n">1</span>¿Qué quieres imprimir?</h2>
   <div class="products">
-    <button type="button" class="product" data-product="dtf"><b>DTF UV</b><br><span>Calcomanía para superficies rígidas</span></button>
-    <button type="button" class="product" data-product="vinilo"><b>Vinilo con corte</b><br><span>Stickers y etiquetas cortados a la silueta</span></button>
+    <button type="button" class="product" data-product="dtf"><b>Calcomanías DTF UV</b><br><span>Para termos, vasos, cuadernos y superficies rígidas. Se pegan sin cortar.</span></button>
+    <button type="button" class="product" data-product="vinilo"><b>Stickers de vinilo</b><br><span>Cortados a la forma de tu diseño (silueta, círculo o cuadro), listos para despegar.</span></button>
   </div>
-  <h2>Elige el tipo</h2>
+  <p><b>Elige el tipo</b></p>
   <div class="styles" id="styles"></div>
   <p class="muted" id="styleNote"></p>
   <div id="vinylOpts" class="hidden">
-    <p><b>Corte</b></p>
-    <p class="muted">Semicorte: se corta solo el vinilo y los stickers quedan en la planilla.</p>
-    <label for="offset">Margen de la línea de corte alrededor del diseño (mm)</label>
+    <p class="muted">Los stickers se entregan cortados en una planilla, listos para despegar uno por uno.</p>
+    <label for="offset">Borde blanco alrededor del diseño (mm) <span class="muted">— espacio entre tu diseño y la línea de corte</span></label>
     <input type="number" id="offset" step="0.5" inputmode="decimal">
     <div class="msg err" id="offsetWarn"></div>
   </div>
 
-  <h2>2. Sube tus imágenes</h2>
-  <label for="file" class="upload">📁 Toca aquí para elegir tus imágenes<br><span class="muted">PNG, JPG o WEBP · puedes elegir varias</span></label>
+  <h2><span class="n">2</span>Sube tus imágenes</h2>
+  <label for="file" class="upload"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>Toca aquí para elegir tus imágenes<br><span class="muted">PNG, JPG o WEBP · puedes elegir varias</span></label>
   <input type="file" id="file" accept="image/png,image/jpeg,image/webp" multiple class="visually-hidden">
   <div class="chips" id="chips"></div>
-  <div class="muted" id="fileHint"></div>
+  <div class="muted" id="fileHint" aria-live="polite"></div>
 
   <div id="editor" class="hidden">
     <div class="grid">
       <div>
         <div class="preview"><canvas id="preview"></canvas></div>
-        <p class="muted">El cuadriculado indica zonas transparentes (no se imprimen). Toca el fondo en la imagen para elegir el color a quitar. <span id="pickSwatch" class="swatch hidden"></span></p>
+        <p class="muted">Los cuadritos grises son zonas transparentes (no se imprimen). Para quitar el fondo: 1) toca el fondo en la imagen, 2) pulsa «Quitar color de fondo». <span id="pickSwatch" class="swatch hidden"></span></p>
         <div class="msg warn" id="bgWarn"></div>
         <button id="btnColor" type="button">Quitar color de fondo</button>
         <p class="muted">Funciona mejor con logos y diseños de fondo liso. Si tu imagen es una foto, súbela ya sin fondo (PNG transparente).</p>
-        <label for="tol">Tolerancia del color de fondo: <span id="tolVal">30</span></label>
-        <input type="range" id="tol" min="5" max="120" value="30">
-        <label class="check"><input type="checkbox" id="everywhere"> Quitar ese color en toda la imagen (también dentro de letras y figuras)</label>
+        <details class="adv"><summary>Ajustes avanzados</summary>
+          <label for="tol">Sensibilidad (más alto quita más tonos parecidos): <span id="tolVal">30</span></label>
+          <input type="range" id="tol" min="5" max="120" value="30">
+          <label class="check"><input type="checkbox" id="everywhere"> Quitar ese color en toda la imagen (también dentro de letras y figuras)</label>
+        </details>
         <button id="btnReset" type="button" class="sec">Restaurar original</button>
         <label for="shape"><b>Forma del sticker</b></label>
         <select id="shape">
@@ -72,7 +74,7 @@
           </div>
           <p class="muted">El logo queda centrado dentro de la forma. La medida que elijas es la de la forma completa.</p>
         </div>
-        <div id="status" class="msg muted"></div>
+        <div id="status" class="msg muted" aria-live="polite"></div>
       </div>
       <div>
         <p><b>Medida de esta imagen</b> <span class="muted">— se mantiene la proporción</span></p>
@@ -81,17 +83,17 @@
           <div><label for="h">Alto (cm)</label><input type="number" id="h" min="0.5" step="0.1" inputmode="decimal"></div>
         </div>
         <label for="qty">Cantidad de esta imagen</label>
-        <input type="number" id="qty" min="1" max="200" value="1">
-        <div class="msg err" id="sizeWarn"></div>
+        <input type="number" id="qty" min="1" value="1" inputmode="numeric">
+        <div class="msg err" id="sizeWarn" role="alert"></div>
         <div class="msg" id="dpiInfo"></div>
-        <button id="btnFill" type="button" class="sec">Llenar el espacio libre con esta imagen</button>
+        <button id="btnFill" type="button" class="sec">Llenar el espacio libre con esta imagen (sin subir el precio)</button>
         <div id="fit"></div>
       </div>
     </div>
   </div>
 
   <div id="quote" class="hidden">
-    <h2>3. Tu montaje</h2>
+    <h2><span class="n">3</span>Tu montaje y precio</h2>
     <div class="montageBar"><span class="muted" id="stats"></span><button id="btnZoom" type="button" class="sec">Ver en grande</button></div>
     <div class="montage" id="montageBox"><canvas id="montage" title="Toca para ver en grande"></canvas></div>
     <p class="muted" id="montageNote"></p>
@@ -99,36 +101,51 @@
     <div class="grid">
       <div>
         <label for="gap">Separación entre diseños (mm)</label>
-        <input type="number" id="gap" min="5" max="20" step="1" value="5" inputmode="numeric">
+        <input type="number" id="gap" step="1" inputmode="numeric">
         <div class="msg err" id="gapWarn"></div>
         <p class="warn" id="gapNote"></p>
       </div>
       <div>
-        <div class="price" id="price">$0</div>
+        <div class="price" id="price" aria-live="polite">$0</div>
+        <div class="unit" id="unit"></div>
+        <div class="muted" id="iva"></div>
         <div class="muted" id="detail"></div>
-        <p class="msg err" id="limit"></p>
+        <ul class="muted perDesign" id="perDesign"></ul>
+        <p class="msg err" id="limit" role="alert"></p>
         <p class="warn" id="waste"></p>
         <p class="muted">IVA no incluido. Cotización estimada, sujeta a revisión del arte final.</p>
       </div>
     </div>
 
-    <div id="zoom" class="zoom hidden"><button id="zoomClose" type="button">Cerrar</button><p class="muted">Toca la imagen para acercar o alejar.</p><div class="zoomScroll"><img id="zoomImg" alt="Montaje ampliado"></div></div>
+    <div id="zoom" class="zoom hidden" role="dialog" aria-modal="true" aria-label="Montaje en grande"><button id="zoomClose" type="button">Cerrar</button><p class="muted">Toca la imagen para acercar o alejar.</p><div class="zoomScroll"><img id="zoomImg" alt="Montaje ampliado"></div></div>
 
-    <h2>4. Aclaraciones</h2>
+    <h2><span class="n">4</span>Aclaraciones</h2>
     <div class="terms" id="terms"></div>
 
-    <h2>5. Tus datos</h2>
-    <label for="name">Nombre (se imprime en la franja del montaje)</label>
+    <div id="comercial" class="terms hidden"></div>
+
+    <h2><span class="n">5</span>Tus datos</h2>
+    <label for="name">Tu nombre o el de tu empresa</label>
     <input id="name" autocomplete="name" maxlength="100">
-    <label for="phone">WhatsApp / teléfono</label>
-    <input id="phone" autocomplete="tel" inputmode="tel" maxlength="40">
+    <p class="muted">Va impreso en una franja pequeña al final del montaje para identificar tu pedido.</p>
+    <label for="phone">WhatsApp</label>
+    <input id="phone" autocomplete="tel" inputmode="tel" maxlength="40" placeholder="Ej. 300 123 4567">
+    <details class="adv"><summary>¿Necesitas factura a nombre de una empresa?</summary>
+      <label for="bEmpresa">Razón social</label><input id="bEmpresa" autocomplete="organization" maxlength="120">
+      <div class="row">
+        <div><label for="bNit">NIT</label><input id="bNit" maxlength="40" inputmode="numeric"></div>
+        <div><label for="bCorreo">Correo para la factura</label><input id="bCorreo" type="email" autocomplete="email" maxlength="120"></div>
+      </div>
+    </details>
     <label for="note">Observaciones (opcional)</label>
     <textarea id="note" rows="2" maxlength="500"></textarea>
     <button id="send" type="button" disabled>Enviar pedido</button>
-    <div class="muted" id="sendHint"></div>
+    <div class="muted" id="sendHint" aria-live="polite"></div>
+    <div id="result" class="msg" aria-live="polite"></div>
+    <button id="print" type="button" class="sec hidden">Guardar o imprimir la cotización (PDF)</button>
     <button id="again" type="button" class="sec hidden">Hacer otro pedido</button>
-    <div id="result" class="msg"></div>
   </div>
+  <footer class="info" id="footer"></footer>
 </div>
 <script src="pricing.js"></script>
 <script src="contour.js"></script>
