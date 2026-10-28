@@ -430,8 +430,8 @@ function smallHint() {
   $('btnMin').addEventListener('click', () => {
     if (busy) return;
     for (const d of designs) {
-      const big = Math.max(d.w, d.h);
-      if (Pricing.isSmall(config, d.w, d.h)) { d.w = d.w * min / big; d.h = d.h * min / big; }
+      const realBig = Math.max(...realSize(d));
+      if (Pricing.isSmall(config, ...realSize(d))) { d.w = d.w * min / realBig; d.h = d.h * min / realBig; }
     }
     if (cur()) select(sel);
     relayout();
@@ -573,7 +573,7 @@ let resizeTimer;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (montage) drawMontage(); }, 200); });
 
 // Piezas con el lado mayor por debajo del límite de corte pequeño.
-const hasSmallPieces = (boxes) => boxes.some((b) => Pricing.isSmall(config, designs[b.d].w, designs[b.d].h));
+const hasSmallPieces = (boxes) => boxes.some((b) => Pricing.isSmall(config, ...realSize(designs[b.d])));
 
 // Celular: barra fija abajo con el precio y un acceso a los datos de envío.
 function updateBar() {
@@ -753,6 +753,21 @@ function updateInfo() {
     : '';
 }
 
+// Fracción del ancho y alto que ocupa la parte sólida (alfa ≥ 128), la misma que sigue la línea de corte.
+// Así una pieza pequeña con bordes casi transparentes se mide igual que en el taller.
+function solidFrac(c) {
+  const { width: W, height: H } = c;
+  const px = c.getContext('2d').getImageData(0, 0, W, H).data;
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (px[(y * W + x) * 4 + 3] >= 128) {
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  // Un píxel de tolerancia por lado: el borde suavizado no debe volver «pequeña» una pieza de 3 cm.
+  return x1 < 0 ? [1, 1] : [Math.min(1, (x1 - x0 + 3) / W), Math.min(1, (y1 - y0 + 3) / H)];
+}
+// Medida real que corta la plotter (para la tarifa de piezas pequeñas).
+const realSize = (d, w = d.w, h = d.h) => [w * ((d.solid && d.solid[0]) || 1), h * ((d.solid && d.solid[1]) || 1)];
+
 // Recalcula el recorte de la imagen actual conservando el ancho elegido.
 function refreshDesign(d = cur()) {
   const t = trim(d.working);
@@ -761,6 +776,7 @@ function refreshDesign(d = cur()) {
   d.design = applyShape(t.canvas, d.shape, d.shapeColor, d.shapePad);
   d.ratio = d.design.height / d.design.width;
   d.h = d.w * d.ratio;
+  d.solid = solidFrac(d.design);
   makeThumb(d);
   if (d === cur()) {
     $('h').value = d.h.toFixed(1);
@@ -825,11 +841,11 @@ function renderFit() {
     return { S, w, h, n: gridCount(d, w, h, L, p) };
   }).filter((r) => r.n > 0 && Math.min(r.w, r.h) >= 0.5);
   const where = product === 'vinilo' ? `un pliego de ${p.W} × ${p.maxLen} cm` : `1 metro (${p.W} × ${p.maxLen} cm)`;
-  const small = (r) => product === 'vinilo' && Pricing.isSmall(config, r.w, r.h) && v.precioPequeno && v.precioPequeno !== v.precio;
+  const small = (r) => product === 'vinilo' && Pricing.isSmall(config, ...realSize(d, r.w, r.h)) && v.precioPequeno && v.precioPequeno !== v.precio;
   box.innerHTML = `<details class="adv"${box.dataset.open ? ' open' : ''}><summary>¿Cuántos caben de esta imagen? Ver tabla de medidas</summary><p class="muted">En ${where} solo con esta imagen. Toca una medida para usarla.</p>
     <div class="fitWrap"><table class="fit"><thead><tr><th>Medida</th><th>Caben</th><th>c/u si lo llenas</th></tr></thead><tbody>${rows.map((r) =>
       `<tr data-s="${r.S}" class="${Math.abs(Math.max(d.w, d.h) - r.S) < 0.05 ? 'sel' : ''}"><td>${r.w.toFixed(1)} × ${r.h.toFixed(1)} cm${small(r) ? '<span class="tag">corte pequeño</span>' : ''}</td>` +
-      `<td>${r.n >= p.maxPieces ? `${r.n} (máx.)` : r.n}</td><td>${fmt(sheetPrice(Math.max(r.w, r.h)) / r.n)}</td></tr>`).join('')}</tbody></table></div>
+      `<td>${r.n >= p.maxPieces ? `${r.n} (máx.)` : r.n}</td><td>${fmt(sheetPrice(Math.max(...realSize(d, r.w, r.h))) / r.n)}</td></tr>`).join('')}</tbody></table></div>
     <p class="muted">El valor c/u es llenando ${product === 'vinilo' ? 'el pliego' : 'el metro'} con esa medida. Tu precio real por unidad aparece junto al total del montaje. IVA no incluido.</p></details>`;
   box.querySelector('details').addEventListener('toggle', (e) => { box.dataset.open = e.target.open ? '1' : ''; });
   box.querySelectorAll('tr[data-s]').forEach((tr) => {

@@ -271,7 +271,13 @@ async function prepVinyl(meta, files) {
     const cw = Math.max(2, Math.round(d.wCm * ppc)), ch = Math.max(2, Math.round(d.hCm * ppc));
     const alpha = await input(files[i]).ensureAlpha().resize(cw, ch, { fit: 'fill' }).extractChannel(3).raw().toBuffer();
     const claimed = Array.isArray(meta.rects) && meta.rects[i] === true;
-    prep.push({ alpha, cw, ch, rect: claimed && Contour.coverage(alpha, cw, ch) >= v.rectanguloCobertura - 0.02 });
+    // Medida real de lo que se corta (alfa ≥ 128): decide la tarifa de pieza pequeña aunque la imagen tenga bordes casi transparentes.
+    let x0 = cw, y0 = ch, x1 = -1, y1 = -1;
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) if (alpha[y * cw + x] >= 128) {
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    const real = x1 < 0 ? [d.wCm, d.hCm] : [Math.min(1, (x1 - x0 + 3) / cw) * d.wCm, Math.min(1, (y1 - y0 + 3) / ch) * d.hCm]; // ±1 px de tolerancia
+    prep.push({ alpha, cw, ch, real, rect: claimed && Contour.coverage(alpha, cw, ch) >= v.rectanguloCobertura - 0.02 });
   }
   return prep;
 }
@@ -405,7 +411,7 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
       } finally { waiting--; }
 
       // Piezas pequeñas: todo el pliego pasa a la tarifa de corte pequeño.
-      const hasSmall = vinyl && boxes.some((b) => Pricing.isSmall(config, meta.designs[b.d].wCm, meta.designs[b.d].hCm));
+      const hasSmall = vinyl && boxes.some((b) => Pricing.isSmall(config, ...prep[b.d].real));
       const { price, detalle } = vinyl
         ? Pricing.quoteVinyl(config, meta.variant, { anchoCm: P.W, largoMaxCm: P.maxLen }, hasSmall)
         : Pricing.quote(config, meta.style, lengthCm);
