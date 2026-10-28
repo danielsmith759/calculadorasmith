@@ -350,12 +350,14 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
       let meta;
       try { meta = JSON.parse(req.body.meta); } catch { fail('Datos inválidos.'); }
       if (!meta || typeof meta !== 'object') fail('Datos inválidos.');
-      const name = String(meta.name || '').trim().slice(0, 100);
-      const phone = String(meta.phone || '').trim().slice(0, 40);
-      const note = String(meta.note || '').trim().slice(0, 500);
+      // Recorte por caracteres (no por unidades UTF-16) para no partir emojis.
+      const cut = (v, n) => [...String(v || '').trim()].slice(0, n).join('');
+      const name = cut(meta.name, 100);
+      const phone = cut(meta.phone, 40);
+      const note = cut(meta.note, 500);
       // Datos de facturación opcionales (empresa).
       const b = meta.billing && typeof meta.billing === 'object' ? meta.billing : {};
-      const billing = Object.fromEntries(['empresa', 'nit', 'correo'].map((k) => [k, String(b[k] || '').trim().slice(0, 120)]).filter(([, v]) => v));
+      const billing = Object.fromEntries(['empresa', 'nit', 'correo'].map((k) => [k, cut(b[k], 120)]).filter(([, v]) => v));
       if (!name || !phone) fail('Nombre y teléfono son obligatorios.');
       if (meta.accepted !== true) fail('Debes aceptar las aclaraciones.');
       const vinyl = meta.product === 'vinilo';
@@ -479,7 +481,7 @@ app.use((err, req, res, next) => {
   for (const f of Object.values(req.files || {}).flat()) fs.rm(f.path, { force: true }, () => {});
   if (err instanceof multer.MulterError) {
     const msg = err.code === 'LIMIT_FILE_SIZE' ? 'Una imagen pesa más de 25 MB. Usa una imagen más liviana.'
-      : err.code === 'LIMIT_FILE_COUNT' ? `Máximo ${MAX_DESIGNS} imágenes por pedido.`
+      : err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE' ? `Máximo ${MAX_DESIGNS} imágenes por pedido.`
         : 'No se pudieron recibir las imágenes.';
     return res.status(400).json({ error: msg });
   }
