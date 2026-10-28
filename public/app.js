@@ -469,7 +469,7 @@ let resizeTimer;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (montage) drawMontage(); }, 200); });
 
 // Piezas con el lado mayor por debajo del límite de corte pequeño.
-const hasSmallPieces = (boxes) => boxes.some((b) => Math.max(designs[b.d].w, designs[b.d].h) < config.vinilo.piezaPequenaCm);
+const hasSmallPieces = (boxes) => boxes.some((b) => Pricing.isSmall(config, designs[b.d].w, designs[b.d].h));
 
 function renderStyles() {
   const L = montage && !montage.over ? montage.lengthCm : null;
@@ -674,10 +674,10 @@ function renderFit() {
   const L = p.maxLen - gapCm - config.etiquetaCm; // descuenta la franja del nombre
   const v = config.vinilo.variantes.find((x) => x.id === variant);
   const sheetPrice = (big) => product === 'vinilo'
-    ? (big < config.vinilo.piezaPequenaCm && v.precioPequeno ? v.precioPequeno : v.precio)
+    ? (Pricing.isSmall(config, big, big) && v.precioPequeno ? v.precioPequeno : v.precio)
     : Pricing.quote(config, style, p.maxLen).price;
   const rows = FIT_SIZES.map((S) => {
-    const w = d.ratio > 1 ? S / d.ratio : S, h = w * d.ratio;
+    const w = Math.round((d.ratio > 1 ? S / d.ratio : S) * 100) / 100, h = Math.round(w * d.ratio * 100) / 100;
     return { S, w, h, n: gridCount(d, w, h, L, p) };
   }).filter((r) => r.n > 0 && Math.min(r.w, r.h) >= 0.5);
   const where = product === 'vinilo' ? `un pliego de ${p.W} × ${p.maxLen} cm` : `1 metro (${p.W} × ${p.maxLen} cm)`;

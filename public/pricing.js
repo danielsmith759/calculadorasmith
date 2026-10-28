@@ -1,6 +1,7 @@
 // Cálculo de precio compartido por el navegador y el servidor (una sola fuente de verdad).
 (function (root) {
   function quote(cfg, style, lengthCm) {
+    if (!Number.isFinite(lengthCm)) throw new Error('Largo inválido');
     const L = Math.max(cfg.largoMinimoCm, lengthCm);
     if (L < 100) {
       // Sub-metro: precio fijo por rango (el largo se redondea hacia arriba al cm; 99,x cm sigue en el último rango).
@@ -13,7 +14,8 @@
     const t = [...cfg.tramos].reverse().find((x) => m >= x.desde);
     const pct = t.dcto ? ` con ${Math.round(t.dcto * 100)}% dcto` : '';
     return {
-      price: Math.round((m * t[style]) / 100) * 100,
+      // Aritmética entera (décimas de cm) para que el redondeo a 100 no dependa de la coma flotante.
+      price: Math.floor((Math.round(L * 10) * t[style] + 50000) / 100000) * 100,
       detalle: `${m.toFixed(2)} m × ${t[style].toLocaleString('es-CO')}/m${pct}`
     };
   }
@@ -21,6 +23,7 @@
   // hasSmall: si el montaje tiene piezas pequeñas, todo el pliego va a la tarifa de corte pequeño.
   function quoteVinyl(cfg, variantId, area, hasSmall = false) {
     const variant = cfg.vinilo.variantes.find((x) => x.id === variantId);
+    if (!variant) throw new Error('Variante inválida');
     const small = hasSmall && variant.precioPequeno && variant.precioPequeno !== variant.precio;
     return {
       price: small ? variant.precioPequeno : variant.precio,
@@ -31,6 +34,7 @@
   // Prueba las dos orientaciones y combinaciones de columnas (o filas) en una orientación + el resto girado.
   // Devuelve las posiciones [{ x, y, w, h }] en cm.
   function fitLayout(W, L, a, b, g) {
+    if (!(a > 0 && b > 0 && g >= 0 && Number.isFinite(W + L + a + b + g))) return [];
     const n = (len, size) => Math.max(0, Math.floor((len + g + 1e-9) / (size + g)));
     let best = null;
     for (const t of [false, true]) { // t: se divide por filas en vez de columnas
@@ -52,9 +56,11 @@
     for (let c = 0; c < n(rest, q); c++) for (let r = 0; r < n(LL, p); r++) push(x0 + c * (q + g), r * (p + g), q, p);
     return out;
   }
+  // Pieza pequeña: lado mayor menor de piezaPequenaCm (con tolerancia: 3 cm exactos no es pequeña).
+  const isSmall = (cfg, w, h) => Math.max(w, h) < cfg.vinilo.piezaPequenaCm - 1e-6;
   const fitCount = (W, L, a, b, g) => fitLayout(W, L, a, b, g).length;
 
-  const api = { quote, quoteVinyl, fitLayout, fitCount };
+  const api = { quote, quoteVinyl, fitLayout, fitCount, isSmall };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Pricing = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

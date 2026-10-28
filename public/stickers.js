@@ -19,7 +19,7 @@
   function basePrice(maxSide) {
     if (prod.kind === 'dtf') return Pricing.quote(config, prod.id, 100).price;
     const v = prod.v;
-    return maxSide < config.vinilo.piezaPequenaCm && v.precioPequeno ? v.precioPequeno : v.precio;
+    return Pricing.isSmall(config, maxSide, maxSide) && v.precioPequeno ? v.precioPequeno : v.precio;
   }
   // Pieza con su margen de corte y la separación que aplica.
   function piece(w, h) {
@@ -34,7 +34,8 @@
 
   function count(w, h) {
     const A = area(), p = piece(w, h);
-    return Pricing.fitLayout(A.W, usable(A.L, p.gap), p.a, p.b, p.g);
+    const max = prod.kind === 'dtf' ? config.maxPiezas : config.vinilo.maxPiezas;
+    return Pricing.fitLayout(A.W, usable(A.L, p.gap), p.a, p.b, p.g).slice(0, max);
   }
 
   function renderProducts() {
@@ -93,12 +94,12 @@
     }
     const price = basePrice(Math.max(w, h));
     const unit = price / n;
-    const small = prod.kind !== 'dtf' && Math.max(w, h) < config.vinilo.piezaPequenaCm;
+    const small = prod.kind !== 'dtf' && Pricing.isSmall(config, w, h);
     $('ccount').textContent = `${n.toLocaleString('es-CO')} stickers`;
     $('cunit').textContent = `${fmt(unit)} c/u · ${A.unitLabel} ${fmt(price)}${small ? ' (tarifa de corte pequeño, menos de 3 cm)' : ''}`;
     quoteText = `${prod.name} · stickers de ${cm(w)} × ${cm(h)} cm\nCaben ${n} en ${A.where}\nValor por unidad: ${fmt(unit)} (${A.unitLabel} ${fmt(price)})`;
 
-    const qty = Math.floor(Number($('cqty').value));
+    const qty = Math.min(1e5, Math.floor(Number($('cqty').value)));
     if (qty >= 1) {
       let line;
       if (prod.kind === 'dtf') {

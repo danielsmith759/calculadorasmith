@@ -76,3 +76,23 @@ test('Configuración: reglas de negocio vigentes', () => {
   assert.deepStrictEqual(config.estilos.map((e) => e.id), ['premium', 'relief']);
   assert.strictEqual(config.vinilo.areaColor.anchoCm, 95);
 });
+
+test('Pieza pequeña: 3 cm exactos (con error de coma flotante) no es pequeña', () => {
+  assert.strictEqual(Pricing.isSmall(config, 2.9999999999999996, 1), false);
+  assert.strictEqual(Pricing.isSmall(config, 3, 3), false);
+  assert.strictEqual(Pricing.isSmall(config, 2.9, 1), true);
+  assert.strictEqual(Pricing.quoteVinyl(config, 'eco', { anchoCm: 95, largoMaxCm: 95 }, false).price, 50000);
+});
+
+test('Redondeo a 100 por metros sin errores de coma flotante', () => {
+  assert.strictEqual(Pricing.quote(config, 'premium', 113).price, 96100);
+  assert.strictEqual(Pricing.quote(config, 'premium', 139).price, 118200);
+  assert.strictEqual(Pricing.quote(config, 'premium', 500).price, 403800);
+});
+
+test('Entradas inválidas no cuelgan ni lanzan errores confusos', () => {
+  assert.deepStrictEqual(Pricing.fitLayout(95, 95, 0, 0, 0), []);
+  assert.deepStrictEqual(Pricing.fitLayout(95, NaN, 5, 5, 0.4), []);
+  assert.throws(() => Pricing.quote(config, 'premium', NaN));
+  assert.throws(() => Pricing.quoteVinyl(config, 'nada', { anchoCm: 1, largoMaxCm: 1 }));
+});

@@ -395,7 +395,7 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
       } finally { waiting--; }
 
       // Piezas pequeñas: todo el pliego pasa a la tarifa de corte pequeño.
-      const hasSmall = vinyl && boxes.some((b) => Math.max(meta.designs[b.d].wCm, meta.designs[b.d].hCm) < config.vinilo.piezaPequenaCm);
+      const hasSmall = vinyl && boxes.some((b) => Pricing.isSmall(config, meta.designs[b.d].wCm, meta.designs[b.d].hCm));
       const { price, detalle } = vinyl
         ? Pricing.quoteVinyl(config, meta.variant, { anchoCm: P.W, largoMaxCm: P.maxLen }, hasSmall)
         : Pricing.quote(config, meta.style, lengthCm);
