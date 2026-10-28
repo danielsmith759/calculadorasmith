@@ -206,6 +206,7 @@ function maxFit(i) {
   if (!ok(1)) return 0;
   const o = product === 'vinilo' && isRect(d) ? 0 : p.off;
   let lo = 1, hi = Math.min(p.maxPieces - others, Math.floor((p.W * p.maxLen) / ((d.w + 2 * o) * (d.h + 2 * o))) + 1);
+  if (others + 1 > p.maxPieces) return 0;
   if (hi <= lo) return lo;
   if (ok(hi)) return hi;
   while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ok(m)) lo = m; else hi = m; }
@@ -440,7 +441,13 @@ function openZoom() {
   if (!montage) return;
   if (document.documentElement.classList.contains('embed')) {
     // Dentro de otra página la vista a pantalla completa quedaría tapada: se abre en una pestaña nueva.
-    $('montage').toBlob((blob) => { if (blob) window.open(URL.createObjectURL(blob), '_blank'); }, 'image/png');
+    const w = window.open('', '_blank'); // se abre dentro del gesto del usuario para que no lo bloqueen
+    $('montage').toBlob((blob) => {
+      if (!blob) { if (w) w.close(); return; }
+      const url = URL.createObjectURL(blob);
+      if (w) w.location = url; else $('sizeWarn').textContent = 'Tu navegador bloqueó la ventana. Permite ventanas emergentes para ver el montaje en grande.';
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }, 'image/png');
     return;
   }
   $('zoomImg').src = $('montage').toDataURL('image/png');
@@ -469,8 +476,8 @@ function renderStyles() {
   $('styles').innerHTML = '';
   $('vinylOpts').classList.toggle('hidden', product !== 'vinilo');
   $('styleNote').textContent = product === 'vinilo'
-    ? 'Precio por pliego completo de 95 × 95 cm, se llene o no. IVA no incluido.'
-    : 'Precios sobre 58 cm de ancho, IVA no incluido. Los valores mostrados corresponden a tu montaje actual.';
+    ? `Precio por pliego completo de ${config.vinilo.areaColor.anchoCm} × ${config.vinilo.areaColor.largoMaxCm} cm: pagas el pliego aunque no lo llenes, así que aprovéchalo. IVA no incluido.`
+    : `Precios sobre ${config.anchoRolloCm} cm de ancho, IVA no incluido. Los valores mostrados corresponden a tu montaje actual.`;
   if (product === 'vinilo') {
     for (const v of config.vinilo.variantes) {
       const card = document.createElement('label');
@@ -516,7 +523,7 @@ function updateSend() {
   let hint = '';
   if (sent) hint = '';
   else if (!montage) hint = designs.length ? 'Corrige el montaje para poder enviar.' : 'Sube al menos una imagen.';
-  else if (montage.over) hint = 'El montaje supera 1 metro.';
+  else if (montage.over) hint = `El montaje supera el largo máximo (${P().maxLen} cm). Quita piezas o hazlas más pequeñas.`;
   else if (!$('accept').checked) hint = 'Marca la casilla de aceptación de las aclaraciones.';
   else if (!$('name').value.trim() || !$('phone').value.trim()) hint = 'Escribe tu nombre y teléfono.';
   $('send').disabled = !!hint || busy || sent;
@@ -557,7 +564,10 @@ function renderChips() {
 function removeDesign(i) {
   designs.splice(i, 1);
   if (!designs.length) { sel = -1; $('editor').classList.add('hidden'); }
-  else select(Math.min(sel, designs.length - 1));
+  else {
+    if (i < sel) sel--;
+    select(Math.min(sel, designs.length - 1));
+  }
   relayout();
 }
 
@@ -620,7 +630,7 @@ function refreshDesign(d = cur()) {
 
 function setBusy(on) {
   busy = on;
-  for (const id of ['btnColor', 'btnReset', 'file']) $(id).disabled = on;
+  for (const id of ['btnColor', 'btnReset', 'file', 'w', 'h', 'qty', 'shape', 'shapeColor', 'shapePad', 'gap', 'offset', 'btnFill']) if ($(id)) $(id).disabled = on;
   updateSend();
 }
 
@@ -733,7 +743,7 @@ function setProduct(p) {
     : `Separación mínima ${q.gapMin * 10} mm entre diseños. Si vas a recortar con tijera, te recomendamos aumentarla para un corte más cómodo. El espacio entre diseños también se imprime y hace parte del costo.`;
   $('montageNote').textContent = p === 'vinilo'
     ? `Área de impresión ${q.W} × ${q.maxLen} cm${hasWhite() ? ' (con base blanca)' : ''}. Las imágenes se acomodan solas y la línea punteada rosada es el corte.`
-    : 'El montaje siempre es de 58 cm de ancho, mínimo 15 cm de largo y máximo 1 metro. Las imágenes se acomodan solas.';
+    : `El montaje siempre es de ${config.anchoRolloCm} cm de ancho, mínimo ${config.largoMinimoCm} cm de largo y máximo ${config.largoMaximoCm / 100} metro. Las imágenes se acomodan solas.`;
   if (changed) renderTerms();
   relayout();
 }
@@ -950,10 +960,16 @@ $('again').addEventListener('click', () => location.reload());
 for (const id of ['name', 'phone']) $(id).addEventListener('input', () => { if (montage) drawMontage(); updateSend(); });
 window.addEventListener('beforeunload', (e) => { if (designs.length && !sent) { e.preventDefault(); e.returnValue = ''; } });
 
-fetch('/api/config').then((r) => r.json()).then((c) => {
+fetch('/api/config').then((r) => { if (!r.ok) throw new Error(); return r.json(); }).then((c) => {
   config = c;
   offsetCm = c.vinilo.margenCorteCm;
   $('offset').min = c.vinilo.margenCorteMinCm * 10; $('offset').max = c.vinilo.margenCorteMaxCm * 10; $('offset').value = c.vinilo.margenCorteCm * 10;
   // ?producto=vinilo abre directo el cotizador de vinilo (enlaces para la web, redes y WhatsApp).
   setProduct(new URLSearchParams(location.search).get('producto') === 'vinilo' ? 'vinilo' : 'dtf');
-  updateSend(); });
+  updateSend();
+}).catch(() => {
+  const m = document.createElement('p');
+  m.className = 'msg err'; m.setAttribute('role', 'alert');
+  m.textContent = 'No se pudo cargar la información de precios. Recarga la página o escríbenos por WhatsApp.';
+  document.querySelector('.contenedor').prepend(m);
+});
