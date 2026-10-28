@@ -14,3 +14,11 @@ services:
       # Usuarios del panel: "usuario:clave,usuario2:clave2". Render la pide al crear el servicio.
       - key: ADMIN_USERS
         sync: false
+      - key: NODE_VERSION
+        value: 22
+      # Dominios que pueden incrustar el cotizador, separados por coma: https://tuweb.com
+      - key: EMBED_ORIGINS
+        sync: false
+      # Número de WhatsApp con indicativo, sin +: 573001234567
+      - key: WHATSAPP
+        sync: false

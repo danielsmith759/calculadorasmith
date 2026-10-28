@@ -10,7 +10,7 @@
     var last = 0;
     var send = function () {
       var h = document.documentElement.scrollHeight;
-      if (h !== last) { last = h; window.parent.postMessage({ type: 'smith-alto', alto: h }, '*'); }
+      if (h !== last) { last = h; window.parent.postMessage({ type: 'smith-alto', alto: h }, (location.ancestorOrigins && location.ancestorOrigins[0]) || '*'); }
     };
     new ResizeObserver(send).observe(document.body);
     send();

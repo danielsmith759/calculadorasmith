@@ -19,6 +19,14 @@ fs.mkdirSync(FILES_DIR, { recursive: true });
 fs.rmSync(TMP_DIR, { recursive: true, force: true }); // subidas a medias de una ejecución anterior
 fs.mkdirSync(TMP_DIR, { recursive: true });
 
+// Subidas abortadas a medias: se borran los temporales de más de 10 minutos.
+setInterval(() => {
+  fs.readdir(TMP_DIR, (e, names) => (names || []).forEach((n) => {
+    const p = path.join(TMP_DIR, n);
+    fs.stat(p, (e2, st) => { if (!e2 && Date.now() - st.mtimeMs > 10 * 60 * 1000) fs.rm(p, { force: true }, () => {}); });
+  }));
+}, 5 * 60 * 1000).unref();
+
 // Poca memoria en el plan gratis: sin caché de sharp y un hilo por operación.
 sharp.cache(false);
 sharp.concurrency(Number(process.env.SHARP_CONCURRENCY) || 1);
@@ -35,10 +43,10 @@ const safeEqual = (a, b) => {
 // o, en local, usuarios.json creado con scripts/usuario.js (no se sube al repositorio).
 const users = Object.create(null);
 if (process.env.ADMIN_USERS) {
-  for (const pair of process.env.ADMIN_USERS.split(',')) {
+  for (const pair of process.env.ADMIN_USERS.split(/[;,]/)) {
     const i = pair.indexOf(':');
     const user = pair.slice(0, i).trim().toLowerCase(), pass = pair.slice(i + 1);
-    if (i > 0 && pass) {
+    if (/^[a-z0-9]{3,30}$/.test(user) && pass) {
       const salt = crypto.randomBytes(16).toString('hex');
       users[user] = { salt, hash: crypto.scryptSync(pass, salt, 32).toString('hex') };
     }
@@ -55,7 +63,14 @@ const checkLogin = async (user, pass) => {
 };
 
 const loadOrders = () => {
-  try { return JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8')); } catch { return []; }
+  let raw;
+  try { raw = fs.readFileSync(ORDERS_FILE, 'utf8'); } catch (e) { if (e.code === 'ENOENT') return []; throw e; }
+  try { return JSON.parse(raw); } catch (e) {
+    // Archivo dañado: se conserva una copia en vez de pisarlo con una lista vacía.
+    fs.renameSync(ORDERS_FILE, `${ORDERS_FILE}.${Date.now()}.bak`);
+    console.error('orders.json dañado; copia guardada como .bak', e.message);
+    return [];
+  }
 };
 const saveOrders = (orders) => {
   const tmp = ORDERS_FILE + '.tmp';
@@ -315,10 +330,13 @@ async function buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, outBase
   fs.writeFileSync(outBase + '.svg', buildCutSvg(pageW, pageH, cuts, marks));
 }
 
-const tooBig = (req, res, next) =>
-  Number(req.headers['content-length']) > MAX_REQUEST_BYTES
+const tooBig = (req, res, next) => {
+  const len = Number(req.headers['content-length']);
+  if (!(len > 0)) return res.status(411).json({ error: 'Solicitud inválida.' }); // sin tamaño declarado no se puede limitar
+  return len > MAX_REQUEST_BYTES
     ? res.status(413).json({ error: 'El pedido es demasiado pesado. Usa imágenes más livianas o menos imágenes.' })
     : next();
+};
 
 app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
   upload.fields([{ name: 'images', maxCount: MAX_DESIGNS }, { name: 'label', maxCount: 1 }]), async (req, res) => {
@@ -338,7 +356,12 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
       const label = req.files && req.files.label && req.files.label[0];
       if (!label && !vinyl) fail('Falta la etiqueta del cliente.');
       if (vinyl && files.length !== (meta.designs || []).length) fail('Imágenes inválidas.');
-      const prep = vinyl ? await prepVinyl(meta, files) : [];
+      if (waiting >= MAX_WAITING) return res.status(503).json({ error: 'Estamos procesando otros pedidos. Intenta de nuevo en un minuto.' });
+      let prep = [];
+      if (vinyl) { // decodificar imágenes también pasa por la cola para no agotar memoria
+        waiting++;
+        try { prep = await exclusive(() => prepVinyl(meta, files)); } finally { waiting--; }
+      }
       const { boxes, lengthCm: layoutLength } = checkLayout(meta, files.length, P, prep.map((x) => x.rect));
       const labelY = layoutLength + meta.gapCm; // franja con el nombre del cliente al final
       const rawLength = labelY + config.etiquetaCm;
@@ -437,6 +460,7 @@ app.get('/api/admin/orders/:id/download/:kind', requireAdmin, (req, res) => {
   const kind = req.params.kind;
   if (!order || !(order.files || ['png']).includes(kind)) return res.status(404).end();
   const file = path.join(FILES_DIR, `${order.id}.${kind}`);
+  if (!fs.existsSync(file)) return res.status(404).json({ error: 'El archivo ya no está en el servidor (el plan gratis borra los archivos al reiniciar).' });
   const safe = order.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w-]+/g, '_');
   const tipo = order.product === 'vinilo' ? `vinilo_${order.widthCm}x${order.lengthCm}cm${kind === 'svg' ? '_corte' : ''}` : `${order.style}_58x${order.lengthCm}cm`;
   res.download(file, `${order.id.slice(0, 8)}_${safe}_${tipo}.${kind}`, { headers: { 'Content-Type': MIME[kind] } });
@@ -444,6 +468,7 @@ app.get('/api/admin/orders/:id/download/:kind', requireAdmin, (req, res) => {
 
 // Errores en JSON legible, sin detalles internos.
 app.use((err, req, res, next) => {
+  for (const f of Object.values(req.files || {}).flat()) fs.rm(f.path, { force: true }, () => {});
   if (err instanceof multer.MulterError) {
     const msg = err.code === 'LIMIT_FILE_SIZE' ? 'Una imagen pesa más de 25 MB. Usa una imagen más liviana.'
       : err.code === 'LIMIT_FILE_COUNT' ? `Máximo ${MAX_DESIGNS} imágenes por pedido.`
