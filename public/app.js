@@ -256,6 +256,7 @@ function invalidQuote(reason) {
   $('waste').textContent = '';
   $('limit').textContent = reason;
   renderFree(null);
+  updateBar();
   const c = $('montage'); c.width = 1; c.height = 1;
 }
 
@@ -310,7 +311,8 @@ function relayout() {
         : '';
       if (over) addWaLink($('limit'), 'Cotizar un pedido grande por WhatsApp', 'Hola, quiero cotizar un pedido grande de stickers.');
       $('iva').textContent = over || !config.ivaPct ? '' : `+ IVA ${config.ivaPct}%: ${fmt(q.price * config.ivaPct / 100)} · Total con IVA ${fmt(q.price * (1 + config.ivaPct / 100))}`;
-      $('unit').textContent = over ? '' : `${fmt(q.price / boxes.length)} por unidad · ${boxes.length} ${boxes.length === 1 ? 'pieza' : 'piezas'}`;
+      $('unit').textContent = over ? '' : `${fmt(q.price / boxes.length)} c/u con tus ${boxes.length} ${boxes.length === 1 ? 'pieza' : 'piezas'}` +
+        (product === 'vinilo' && empty > 30 ? ' · llena el pliego y baja el valor por unidad sin pagar más' : '');
       $('waste').textContent = empty > 5 && !over && product !== 'vinilo'
         ? `Espacio libre en tu montaje: ${empty}%. Ese espacio se cobra porque consume material; puedes aprovecharlo agregando más imágenes sin pagar más.`
         : '';
@@ -325,6 +327,7 @@ function relayout() {
       renderFree(over ? null : { used: 100 - empty, freeLen: p.maxLen - rawLength });
       renderFit();
       drawMontage();
+      updateBar();
     }
   }
   renderStyles();
@@ -389,7 +392,20 @@ function renderInfo() {
     box.classList.remove('hidden');
   }
   const parts = [k.negocio, k.whatsapp && `WhatsApp +${k.whatsapp}`, k.correo, k.direccion, k.horario].filter(Boolean);
-  $('footer').textContent = parts.join(' · ');
+  $('footer').textContent = parts.filter((x) => !String(x).startsWith('WhatsApp')).join(' · ');
+  if (k.whatsapp) {
+    // WhatsApp como enlace, en el pie y arriba (para dudas u otros productos).
+    const a = document.createElement('a');
+    a.href = `https://wa.me/${k.whatsapp}?text=${encodeURIComponent('Hola, tengo una pregunta sobre un pedido.')}`;
+    a.target = '_blank'; a.rel = 'noopener'; a.textContent = `WhatsApp +${k.whatsapp}`;
+    $('footer').append($('footer').textContent ? ' · ' : '', a);
+    const top = document.createElement('p');
+    top.className = 'muted center';
+    top.innerHTML = '¿Dudas o buscas otro producto (impresión, tesis, álbumes…)? ';
+    const b = a.cloneNode(true); b.textContent = 'Escríbenos por WhatsApp';
+    top.appendChild(b);
+    document.querySelector('header').appendChild(top);
+  }
 }
 
 // Enlace de WhatsApp del negocio (si está configurado).
@@ -551,6 +567,14 @@ window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer
 // Piezas con el lado mayor por debajo del límite de corte pequeño.
 const hasSmallPieces = (boxes) => boxes.some((b) => Pricing.isSmall(config, designs[b.d].w, designs[b.d].h));
 
+// Celular: barra fija abajo con el precio y un acceso a los datos de envío.
+function updateBar() {
+  const show = !!montage && !montage.over && !sent && !barHidden;
+  $('stickyBar').classList.toggle('hidden', !show);
+  if (show) $('barPrice').textContent = `${$('price').textContent} · ${$('unit').textContent.split(' · ')[0]}`;
+}
+let barHidden = false;
+
 function renderStyles() {
   const L = montage && !montage.over ? montage.lengthCm : null;
   $('styles').innerHTML = '';
@@ -605,7 +629,8 @@ function updateSend() {
   else if (!montage) hint = designs.length ? 'Corrige el montaje para poder enviar.' : 'Sube al menos una imagen.';
   else if (montage.over) hint = `El montaje supera el largo máximo (${P().maxLen} cm). Quita piezas o hazlas más pequeñas.`;
   else if (!$('accept').checked) hint = 'Marca la casilla de aceptación de las aclaraciones.';
-  else if (!$('name').value.trim() || !$('phone').value.trim()) hint = 'Escribe tu nombre y teléfono.';
+  else if (!$('name').value.trim() || !$('phone').value.trim()) hint = 'Escribe tu nombre y tu WhatsApp.';
+  else if ($('phone').value.replace(/\D/g, '').length < 7) hint = 'Revisa tu número de WhatsApp (ej. 300 123 4567).';
   $('send').disabled = !!hint || busy || sent;
   $('sendHint').textContent = hint;
 }
@@ -680,13 +705,14 @@ function updateInfo() {
   const dpi = dpiOf(d);
   $('dpiInfo').className = 'msg ' + (dpi < DPI_BAD ? 'err' : dpi < DPI_WARN ? 'warn' : 'ok');
   $('dpiInfo').textContent = dpi < DPI_WARN
-    ? `Calidad baja para esta medida (${dpi} ppp): puede verse borrosa o pixelada. Usa una imagen más grande o reduce la medida.`
+    ? `Tu imagen es pequeña para ${d.w.toFixed(1)} cm y puede verse borrosa. Si tienes el archivo original más grande, súbelo, o reduce la medida. (${dpi} ppp)`
     : `Calidad de imagen buena para esta medida (${Math.min(dpi, 999)} ppp).`;
   const src = d.logo || d.design; // el fondo se revisa en el logo, no en la forma
   const c = src.getContext('2d');
   const corners = [[0, 0], [src.width - 1, 0], [0, src.height - 1], [src.width - 1, src.height - 1]];
   const opaque = corners.every(([x, y]) => c.getImageData(x, y, 1, 1).data[3] > 200);
-  $('bgWarn').textContent = opaque && !d.cleaned
+  // Con forma de círculo o cuadro el fondo queda dentro de la forma: no hace falta quitarlo.
+  $('bgWarn').textContent = opaque && !d.cleaned && d.shape === 'silueta'
     ? 'Tu imagen parece tener fondo. Si no lo quitas, el fondo también se imprimirá (incluido el blanco).'
     : '';
 }
@@ -763,11 +789,12 @@ function renderFit() {
   }).filter((r) => r.n > 0 && Math.min(r.w, r.h) >= 0.5);
   const where = product === 'vinilo' ? `un pliego de ${p.W} × ${p.maxLen} cm` : `1 metro (${p.W} × ${p.maxLen} cm)`;
   const small = (r) => product === 'vinilo' && Pricing.isSmall(config, r.w, r.h) && v.precioPequeno && v.precioPequeno !== v.precio;
-  box.innerHTML = `<p><b>¿Cuántos caben?</b> <span class="muted">En ${where} solo con esta imagen. Toca una medida para llenar el espacio con ella.</span></p>
+  box.innerHTML = `<details class="adv"${box.dataset.open ? ' open' : ''}><summary>¿Cuántos caben de esta imagen? Ver tabla de medidas</summary><p class="muted">En ${where} solo con esta imagen. Toca una medida para usarla.</p>
     <div class="fitWrap"><table class="fit"><thead><tr><th>Medida</th><th>Caben</th><th>c/u si lo llenas</th></tr></thead><tbody>${rows.map((r) =>
       `<tr data-s="${r.S}" class="${Math.abs(Math.max(d.w, d.h) - r.S) < 0.05 ? 'sel' : ''}"><td>${r.w.toFixed(1)} × ${r.h.toFixed(1)} cm${small(r) ? '<span class="tag">corte pequeño</span>' : ''}</td>` +
       `<td>${r.n >= p.maxPieces ? `${r.n} (máx.)` : r.n}</td><td>${fmt(sheetPrice(Math.max(r.w, r.h)) / r.n)}</td></tr>`).join('')}</tbody></table></div>
-    <p class="muted">El valor c/u es llenando ${product === 'vinilo' ? 'el pliego' : 'el metro'} con esa medida. Tu precio real por unidad aparece junto al total del montaje. IVA no incluido.</p>`;
+    <p class="muted">El valor c/u es llenando ${product === 'vinilo' ? 'el pliego' : 'el metro'} con esa medida. Tu precio real por unidad aparece junto al total del montaje. IVA no incluido.</p></details>`;
+  box.querySelector('details').addEventListener('toggle', (e) => { box.dataset.open = e.target.open ? '1' : ''; });
   box.querySelectorAll('tr[data-s]').forEach((tr) => tr.addEventListener('click', () => {
     if (busy) return;
     const r = rows.find((x) => x.S === Number(tr.dataset.s));
@@ -850,14 +877,21 @@ $('file').addEventListener('change', async () => {
   const files = [...$('file').files];
   $('file').value = '';
   setBusy(true);
+  const problems = [];
+  $('fileErr').textContent = '';
   try {
     for (const f of files) {
-      if (designs.length >= MAX_DESIGNS) { alert(`Máximo ${MAX_DESIGNS} imágenes distintas por pedido.`); break; }
+      if (designs.length >= MAX_DESIGNS) { problems.push(`Máximo ${MAX_DESIGNS} imágenes distintas por pedido.`); break; }
       let working;
-      try { working = await loadImage(f); } catch { alert(`No se pudo leer "${f.name}". Usa PNG, JPG o WEBP.`); continue; }
+      try { working = await loadImage(f); } catch {
+        problems.push(/\.pdf$/i.test(f.name) || f.type === 'application/pdf'
+          ? `"${f.name}" es un PDF. Aquí se cotizan stickers y calcomanías con imágenes PNG, JPG o WEBP. Para imprimir documentos, tesis o álbumes escríbenos por WhatsApp.`
+          : `No se pudo abrir "${f.name}". Usa una imagen PNG, JPG o WEBP.`);
+        continue;
+      }
       const d = { file: f, working, design: null, ratio: 1, w: 10, h: 10, qty: 1, cleaned: false, shape: 'silueta', shapeColor: '#ffffff', shapePad: 10 };
       const t = trim(working);
-      if (!t) { alert(`"${f.name}" está vacía (totalmente transparente).`); continue; }
+      if (!t) { problems.push(`"${f.name}" no tiene nada visible (es totalmente transparente). Sube otra imagen.`); continue; }
       // Medida inicial: el lado más largo en 10 cm.
       const ratio = t.canvas.height / t.canvas.width;
       d.w = ratio > 1 ? 10 / ratio : 10;
@@ -867,6 +901,10 @@ $('file').addEventListener('change', async () => {
     }
   } finally {
     setBusy(false);
+  }
+  if (problems.length) {
+    $('fileErr').textContent = problems.join(' ');
+    if (problems.some((t) => t.includes('PDF'))) addWaLink($('fileErr'), 'Cotizar documentos por WhatsApp', 'Hola, quiero cotizar la impresión de un documento.');
   }
   if (sel >= 0) select(sel);
 });
@@ -966,15 +1004,15 @@ $('btnColor').addEventListener('click', () => {
       px[i + 3] = Math.round(px[i + 3] * a);
     }
   }
-  if (!count) { say('No se encontró fondo de ese color. Sube la tolerancia o toca el fondo para elegir el color.', 'err'); return; }
+  if (!count) { say('No se encontró fondo de ese color. Sube la «Sensibilidad» en Ajustes avanzados o toca el fondo para elegir el color.', 'err'); return; }
   ctx.putImageData(img, 0, 0);
   d.cleaned = true;
   d.lastBg = bg;
   if (!refreshDesign(d)) {
-    say('Se borró toda la imagen. Pulsa "Restaurar original" y baja la tolerancia.', 'err');
+    say('Se borró toda la imagen. Pulsa «Restaurar original» y baja la «Sensibilidad» en Ajustes avanzados.', 'err');
     return;
   }
-  say(`Fondo quitado (${Math.round((count / (width * height)) * 100)}% de la imagen). Si quedan restos, sube la tolerancia y repite.`, 'ok');
+  say(`Fondo quitado (${Math.round((count / (width * height)) * 100)}% de la imagen). Si quedan restos, sube la «Sensibilidad» (Ajustes avanzados) y repite.`, 'ok');
 });
 
 // Exporta cada diseño a su resolución real (el servidor lo lleva a la medida de impresión).
@@ -998,6 +1036,8 @@ $('send').addEventListener('click', async () => {
   const out = $('result');
   out.className = 'msg';
   if (!montage || montage.over || sent) return;
+  const low = designs.filter((d) => dpiOf(d) < DPI_WARN).length;
+  if (low && !confirm(`${low === 1 ? 'Una imagen tiene' : `${low} imágenes tienen`} poca resolución y puede${low === 1 ? '' : 'n'} verse borrosa${low === 1 ? '' : 's'}. ¿Enviar el pedido así de todos modos?`)) return;
   setBusy(true);
   $('send').disabled = true;
   out.textContent = 'Preparando y enviando tus archivos… no cierres la página.';
@@ -1069,6 +1109,9 @@ $('send').addEventListener('click', async () => {
 });
 
 $('again').addEventListener('click', () => location.reload());
+$('barGo').addEventListener('click', () => $('name').scrollIntoView({ behavior: 'smooth', block: 'center' }));
+// La barra se oculta cuando el cliente ya está en la parte de enviar.
+new IntersectionObserver(([e]) => { barHidden = e.isIntersecting; if (config) updateBar(); }).observe($('send'));
 $('print').addEventListener('click', () => window.print());
 for (const id of ['name', 'phone']) $(id).addEventListener('input', () => { if (montage) drawMontage(); updateSend(); });
 window.addEventListener('beforeunload', (e) => { if (designs.length && !sent) { e.preventDefault(); e.returnValue = ''; } });

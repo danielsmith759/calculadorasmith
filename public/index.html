@@ -45,6 +45,7 @@
   <input type="file" id="file" accept="image/png,image/jpeg,image/webp" multiple class="visually-hidden">
   <div class="chips" id="chips"></div>
   <div class="muted" id="fileHint" aria-live="polite"></div>
+  <div class="msg err" id="fileErr" role="alert"></div>
 
   <div id="editor" class="hidden">
     <div class="grid">
@@ -86,7 +87,7 @@
         <input type="number" id="qty" min="1" value="1" inputmode="numeric">
         <div class="msg err" id="sizeWarn" role="alert"></div>
         <div class="msg" id="dpiInfo"></div>
-        <button id="btnFill" type="button" class="sec">Llenar el espacio libre con esta imagen (sin subir el precio)</button>
+        <button id="btnFill" type="button">Llenar el espacio libre con esta imagen (sin subir el precio)</button>
         <div id="fit"></div>
       </div>
     </div>
@@ -146,6 +147,7 @@
     <button id="again" type="button" class="sec hidden">Hacer otro pedido</button>
   </div>
   <footer class="info" id="footer"></footer>
+  <div id="stickyBar" class="stickyBar hidden"><span id="barPrice"></span><button id="barGo" type="button">Hacer pedido</button></div>
 </div>
 <script src="pricing.js"></script>
 <script src="contour.js"></script>

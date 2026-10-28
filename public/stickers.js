@@ -59,6 +59,7 @@
     }
     $('cutOpts').classList.toggle('hidden', p.kind === 'dtf');
     renderProducts();
+    if ($('toQuote')) $('toQuote').href = `index.html?producto=${p.kind === 'dtf' ? 'dtf' : 'vinilo'}`;
     update();
   }
 
