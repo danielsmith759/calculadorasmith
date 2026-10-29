@@ -410,6 +410,20 @@ function renderInfo() {
   }
 }
 
+// Envío con progreso de subida (XMLHttpRequest); la demostración sin servidor usa fetch.
+function postOrder(fd, onProgress) {
+  if (window.fetch.isDemo) return fetch('/api/orders', { method: 'POST', body: fd });
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('POST', '/api/orders');
+    x.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded, e.total); };
+    x.onload = () => resolve({ ok: x.status >= 200 && x.status < 300, status: x.status, json: async () => JSON.parse(x.responseText) });
+    x.onerror = x.ontimeout = () => reject(new Error('red'));
+    x.send(fd);
+  });
+}
+const frame = () => new Promise((r) => setTimeout(r, 30)); // deja que la pantalla muestre el aviso antes de un trabajo pesado
+
 // Enlace de WhatsApp del negocio (si está configurado).
 function addWaLink(el, label, text) {
   const wa = config.contacto && config.contacto.whatsapp;
@@ -938,8 +952,10 @@ $('file').addEventListener('change', async () => {
   const problems = [];
   $('fileErr').textContent = '';
   try {
-    for (const f of files) {
+    for (const [n, f] of files.entries()) {
       if (designs.length >= MAX_DESIGNS) { problems.push(`Máximo ${MAX_DESIGNS} imágenes distintas por pedido.`); break; }
+      $('fileHint').textContent = `Procesando imagen ${n + 1} de ${files.length}…`;
+      await frame();
       let working;
       try { working = await loadImage(f); } catch {
         problems.push(/\.pdf$/i.test(f.name) || f.type === 'application/pdf'
@@ -1009,8 +1025,10 @@ $('preview').addEventListener('click', (ev) => {
 });
 
 // Quita el color de fondo: desde los bordes (o en toda la imagen), con borde suave y sin halo.
-$('btnColor').addEventListener('click', () => {
+$('btnColor').addEventListener('click', async () => {
   const d = cur();
+  if (!d || busy) return;
+  say('Quitando el fondo…'); await frame();
   const work = d.working;
   const { width, height } = work;
   const ctx = work.getContext('2d');
@@ -1184,8 +1202,14 @@ $('send').addEventListener('click', async () => {
     let res;
     // Si el taller está ocupado (503) se reintenta solo, sin que el cliente pierda su pedido.
     for (let intento = 1; ; intento++) {
-      try { res = await fetch('/api/orders', { method: 'POST', body: fd }); }
-      catch { throw new Error('No hay conexión con el servidor. Revisa tu internet e intenta de nuevo.'); }
+      try {
+        res = await postOrder(fd, (sentB, total) => {
+          const mb = (n) => (n / 1048576).toLocaleString('es-CO', { maximumFractionDigits: 1 });
+          out.textContent = sentB < total
+            ? `Subiendo tus archivos: ${mb(sentB)} de ${mb(total)} MB (${Math.floor((sentB / total) * 100)} %)… no cierres la página.`
+            : 'Archivos recibidos. Preparando tu montaje en el taller…';
+        });
+      } catch { throw new Error('Se perdió la conexión mientras se enviaba. Revisa tu internet y pulsa «Enviar pedido» de nuevo: tus imágenes siguen aquí.'); }
       if (res.status !== 503 || intento >= 8) break;
       const wait = Math.min(30, 5 * intento);
       out.textContent = `Hay varios pedidos en fila. Reintentamos en ${wait} s (intento ${intento + 1} de 8)… no cierres la página.`;
