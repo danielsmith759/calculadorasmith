@@ -27,7 +27,12 @@
     <div id="err" class="msg err" role="alert"></div>
   </form>
   <div id="panel" class="hidden">
-    <button id="logout" class="sec" style="width:auto">Salir</button>
+    <div class="row" style="align-items:center">
+      <input id="q" type="search" placeholder="Buscar por referencia, nombre, teléfono o NIT" aria-label="Buscar pedidos">
+      <select id="fEstado" aria-label="Filtrar por estado" style="max-width:180px"><option value="">Todos los estados</option></select>
+      <button id="logout" class="sec" style="width:auto;flex:none">Salir</button>
+    </div>
+    <p class="muted" id="count"></p>
     <div style="overflow-x:auto">
       <table>
         <thead><tr><th>Ref</th><th>Fecha</th><th>Cliente</th><th>Estilo</th><th>Montaje</th><th>Total (sin IVA)</th><th>Estado</th><th>Archivo</th></tr></thead>
@@ -41,21 +46,34 @@ const $ = (id) => document.getElementById(id);
 const fmt = (n) => '$' + Math.round(n).toLocaleString('es-CO');
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+const ESTADOS = ['pendiente', 'pagado', 'impreso', 'entregado'];
+$('fEstado').innerHTML += ESTADOS.map((e) => `<option value="${e}">${e[0].toUpperCase() + e.slice(1)}</option>`).join('');
+let orders = [], estilos = {};
+fetch('/api/config').then((r) => r.json()).then((c) => { for (const e of c.estilos) estilos[e.id] = e.nombre; render(); }).catch(() => {});
+const wa = (phone) => { let d = String(phone).replace(/\D/g, ''); if (d.length === 10) d = '57' + d; return d.length >= 10 ? `https://wa.me/${d}` : ''; };
+
 async function load() {
   const res = await fetch('/api/admin/orders');
   if (!res.ok) { $('login').classList.remove('hidden'); $('panel').classList.add('hidden'); return; }
-  const orders = await res.json();
+  orders = await res.json();
   $('login').classList.add('hidden'); $('panel').classList.remove('hidden');
-  $('rows').innerHTML = orders.map((o) => `
+  render();
+}
+function render() {
+  const q = $('q').value.trim().toLowerCase(), est = $('fEstado').value;
+  const list = orders.filter((o) => (!est || o.status === est) &&
+    (!q || [o.id.slice(0, 8), o.name, o.phone, o.note, o.billing && o.billing.nit, o.billing && o.billing.empresa].join(' ').toLowerCase().includes(q)));
+  $('count').textContent = `${list.length} de ${orders.length} pedidos`;
+  $('rows').innerHTML = list.map((o) => `
     <tr>
       <td>${esc(o.id.slice(0, 8).toUpperCase())}</td>
       <td>${new Date(o.createdAt).toLocaleString('es-CO')}</td>
-      <td>${esc(o.name)}<br><span class="muted">${esc(o.phone)}${o.note ? ' · ' + esc(o.note) : ''}${o.billing ? '<br>Factura: ' + esc([o.billing.empresa, o.billing.nit && 'NIT ' + o.billing.nit, o.billing.correo].filter(Boolean).join(' · ')) : ''}</span></td>
-      <td>${esc(o.style)}${o.product === 'vinilo' ? `<br><span class="muted">${o.cutType === 'total' ? 'Corte total' : 'Medio corte'} · margen ${Math.round(o.offsetCm * 100) / 10} mm${(o.capas || []).length ? ' · capas: ' + o.capas.map(esc).join(' + ') : ''}</span>` : ''}</td>
+      <td>${esc(o.name)}<br><span class="muted">${wa(o.phone) ? `<a href="${wa(o.phone)}" target="_blank" rel="noopener">${esc(o.phone)}</a>` : esc(o.phone)}${o.note ? ' · ' + esc(o.note) : ''}${o.billing ? '<br>Factura: ' + esc([o.billing.empresa, o.billing.nit && 'NIT ' + o.billing.nit, o.billing.correo].filter(Boolean).join(' · ')) : ''}</span></td>
+      <td>${esc(estilos[o.style] || o.style)}${o.maquina ? `<br><span class="muted">${esc(o.maquina)}</span>` : ''}${o.product === 'vinilo' ? `<br><span class="muted">${o.cutType === 'total' ? 'Corte total' : 'Medio corte'} · margen ${Math.round(o.offsetCm * 100) / 10} mm${(o.capas || []).length ? ' · capas: ' + o.capas.map(esc).join(' + ') : ''}</span>` : ''}</td>
       <td>${o.product === 'vinilo' ? o.widthCm : 58} × ${o.lengthCm} cm<br><span class="muted">${o.pieces} pzas · ${o.emptyPct}% vacío${o.gapCm ? ' · sep. ' + Math.round(o.gapCm * 10) + ' mm' : ''}</span>${(o.items || []).map((p) =>
         `<br><span class="${p.dpi < 150 ? 'err' : 'muted'}">${p.qty}× ${p.wCm}×${p.hCm} cm · ${p.dpi} ppp${p.dpi < 150 ? ' (baja)' : ''}</span>`).join('')}</td>
       <td>${fmt(o.price)}<br><span class="muted">${esc(o.detalle)}</span></td>
-      <td><button data-id="${esc(o.id)}" data-status="${o.status === 'pendiente' ? 'impreso' : 'pendiente'}">${esc(o.status)}</button></td>
+      <td><select data-id="${esc(o.id)}" aria-label="Estado del pedido ${esc(o.id.slice(0, 8).toUpperCase())}">${ESTADOS.map((e) => `<option${e === o.status ? ' selected' : ''}>${e}</option>`).join('')}</select></td>
       <td>${(o.files || ['png']).map((k) => `<a href="/api/admin/orders/${esc(o.id)}/download/${k}">${k === 'svg' ? 'Corte SVG' : 'Descargar ' + k.toUpperCase()}</a>`).join(' ')}</td>
     </tr>`).join('') || '<tr><td colspan="8">Sin pedidos</td></tr>';
 }
@@ -67,12 +85,14 @@ $('login').addEventListener('submit', async (e) => {
   else $('err').textContent = (await res.json()).error;
 });
 $('logout').addEventListener('click', async () => { await fetch('/api/admin/logout', { method: 'POST' }); load(); });
-$('rows').addEventListener('click', async (e) => {
-  const b = e.target.closest('button[data-id]');
-  if (!b) return;
-  await fetch('/api/admin/orders/' + b.dataset.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: b.dataset.status }) });
+$('rows').addEventListener('change', async (e) => {
+  const sel = e.target.closest('select[data-id]');
+  if (!sel) return;
+  await fetch('/api/admin/orders/' + sel.dataset.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: sel.value }) });
   load();
 });
+$('q').addEventListener('input', render);
+$('fEstado').addEventListener('change', render);
 load();
 </script>
 </body>

@@ -251,6 +251,13 @@ async function composeMontage(meta, files, boxes, lengthCm, label, labelY, outPa
     input: await input(label).ensureAlpha().resize(px(W), px(config.etiquetaCm), { fit: 'fill' }).png().toBuffer(),
     left: 0, top: px(labelY)
   });
+  const ref = path.basename(outPath).slice(0, 8).toUpperCase();
+  const lh = px(config.etiquetaCm);
+  composites.push({
+    input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${px(W)}" height="${lh}"><text x="${px(W) - lh * 0.3}" y="${lh * 0.72}" ` +
+      `font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="${lh * 0.62}" text-anchor="end" fill="#000">REF ${ref}</text></svg>`),
+    left: 0, top: px(labelY)
+  });
   await sharp({ create: { width: px(W), height: px(lengthCm), channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
     .composite(composites)
     .withMetadata({ density: dpi })
@@ -331,7 +338,8 @@ async function buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, outBase
   // Marcas de registro en las 4 esquinas, dentro del margen (la plotter las lee para alinear el corte).
   const { ladoCm: s, bordeCm: e } = v.marcas;
   const marks = [[e, e], [pageW - e - s, e], [e, pageH - e - s], [pageW - e - s, pageH - e - s]].map(([x, y]) => [x, y, s]);
-  const text = `${name.toUpperCase()}  ·  ${new Date().toLocaleDateString('es-CO')}  ·  ${P.variant.nombre}`;
+  const ref = path.basename(outBase).slice(0, 8).toUpperCase();
+  const text = `REF ${ref}  ·  ${name.toUpperCase()}  ·  ${new Date().toLocaleDateString('es-CO')}  ·  ${P.variant.nombre}`;
   const pdf = buildPdf({
     pageW, pageH, images, pieces, cuts, marks,
     label: { text, x: M, y: M + labelY + config.etiquetaCm * 0.75, size: config.etiquetaCm * PT * 0.6 },
@@ -424,7 +432,9 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
         files: vinyl ? ['pdf', 'svg'] : ['png'],
         ...(vinyl ? {
           capas: P.capas,
-          cutType: meta.cutType, offsetCm: meta.offsetCm, widthCm: Number(usedWidth.toFixed(2))
+          cutType: meta.cutType, offsetCm: meta.offsetCm, widthCm: Number(usedWidth.toFixed(2)),
+          maquina: P.variant.maquina || '',
+          pageCm: [P.W + 2 * config.vinilo.margenCm, Number((lengthCm + 2 * config.vinilo.margenCm).toFixed(2))]
         } : {}),
         gapCm: meta.gapCm,
         lengthCm: Number(lengthCm.toFixed(2)),
@@ -465,11 +475,12 @@ app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
   const orders = loadOrders();
   const order = orders.find((o) => o.id === req.params.id);
   if (!order) return res.status(404).json({ error: 'No existe' });
-  if (['pendiente', 'impreso'].includes(req.body.status)) order.status = req.body.status;
+  if (ESTADOS.includes(req.body.status)) order.status = req.body.status;
   saveOrders(orders);
   res.json(order);
 });
 
+const ESTADOS = ['pendiente', 'pagado', 'impreso', 'entregado'];
 const MIME = { png: 'image/png', pdf: 'application/pdf', svg: 'image/svg+xml' };
 app.get('/api/admin/orders/:id/download/:kind', requireAdmin, (req, res) => {
   const order = loadOrders().find((o) => o.id === req.params.id);
@@ -478,7 +489,11 @@ app.get('/api/admin/orders/:id/download/:kind', requireAdmin, (req, res) => {
   const file = path.join(FILES_DIR, `${order.id}.${kind}`);
   if (!fs.existsSync(file)) return res.status(404).json({ error: 'El archivo ya no está en el servidor (el plan gratis borra los archivos al reiniciar).' });
   const safe = order.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w-]+/g, '_');
-  const tipo = order.product === 'vinilo' ? `vinilo_${order.widthCm}x${order.lengthCm}cm${kind === 'svg' ? '_corte' : ''}` : `${order.style}_58x${order.lengthCm}cm`;
+  const clean = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w-]+/g, '_');
+  const estilo = (config.estilos.find((e) => e.id === order.style) || {}).nombre || order.style;
+  // Medida real de la página del archivo (en vinilo incluye el margen de las marcas de registro).
+  const page = order.pageCm ? `${order.pageCm[0]}x${order.pageCm[1]}cm` : `${order.widthCm}x${order.lengthCm}cm`;
+  const tipo = order.product === 'vinilo' ? `${clean(order.style)}_pagina_${page}${kind === 'svg' ? '_corte' : ''}` : `${clean(estilo)}_58x${order.lengthCm}cm`;
   res.download(file, `${order.id.slice(0, 8)}_${safe}_${tipo}.${kind}`, { headers: { 'Content-Type': MIME[kind] } });
 });
 
