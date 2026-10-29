@@ -26,7 +26,7 @@ input:focus, textarea:focus, select:focus { outline: 3px solid var(--ink); outli
 summary:focus-visible, tr[role=button]:focus-visible, .chip:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 .montageBar button, .calcLink a { min-height: 44px; display: inline-flex; align-items: center; }
 input::placeholder, textarea::placeholder { color: #9A978F; }
-input[type=number] { max-width: 220px; }
+input[type=number], #offset, #coff { max-width: 220px; }
 .row input[type=number] { max-width: none; }
 input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(--ink); }
 input[type=range] { border: none; padding: 0; box-shadow: none; }
@@ -92,7 +92,7 @@ table.fit td, table.fit th { padding: 8px 6px; font-size: 0.8438rem; }
 table.fit tbody tr { cursor: pointer; }
 table.fit tbody tr:hover { background: var(--soft); }
 table.fit tr.sel { background: var(--accent-soft); font-weight: 650; }
-table.fit .tag { display: inline-block; font-size: 0.6875rem; font-weight: 700; color: var(--warn); background: var(--warn-soft); border-radius: 4px; padding: 0 5px; margin-left: 4px; }
+table.fit .tag, #ctable .tag { display: inline-block; font-size: 0.6875rem; font-weight: 700; color: var(--warn); background: var(--warn-soft); border-radius: 4px; padding: 0 5px; margin-left: 4px; }
 .terms { background: var(--soft); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; }
 .terms details summary { cursor: pointer; font-weight: 600; font-size: 0.875rem; padding: 4px 0; }
 .terms label { display: flex; gap: 10px; align-items: flex-start; font-size: 0.875rem; margin: 10px 0 4px; }
@@ -157,15 +157,20 @@ ul.perDesign { margin: 6px 0; padding-left: 18px; }
   body { padding-bottom: 80px; }
 }
 html.embed .stickyBar { display: none !important; }
+.printOnly { display: none; }
 /* Cotización impresa: solo el montaje, el precio y la confirmación. */
 @media print {
   body { background: #fff; padding: 0; }
   .contenedor { border: none; box-shadow: none; padding: 0; }
-  .calcLink, .products, #styles, #styleNote, #vinylOpts, .upload, #fileHint, #editor, .montageBar button, #terms, #comercial ~ *:not(#result):not(footer),
+  .calcLink, .products, #styles, #styleNote, #vinylOpts, .upload, #fileHint, #editor, .montageBar button, #terms, #comercial ~ *:not(#result):not(#printSummary):not(footer),
   h2:has(+ #terms), button, details, label, input, textarea, .trust { display: none !important; }
   #quote, #result, footer.info { display: block !important; }
   .montage, .montageBar, #montageNote, #freeInfo { display: none !important; } /* el montaje no se imprime */
-  a.wa, .stickyBar { display: none !important; }
+  a.wa, .stickyBar, #tipoLbl, #result { display: none !important; }
+  .printOnly { display: block !important; }
+  main > h2, #quote > h2, #chips, p.warn, .msg.warn, #iva, #unit, #detail, #perDesign, .price, #quote .muted { display: none !important; }
+  #printSummary h2 { display: block !important; }
+  #printSummary p { margin: 6px 0; }
 }
 /* Calculadora: productos compactos en 2 columnas también en celular. */
 #calcProducts { grid-template-columns: 1fr 1fr; }

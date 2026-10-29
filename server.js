@@ -145,7 +145,11 @@ app.disable('x-powered-by');
 const EMBED_ORIGINS = (process.env.EMBED_ORIGINS || '').split(',').map((s) => s.trim().replace(/\/$/, ''))
   .filter((s) => /^https?:\/\/(\*\.)?[\w.-]+(:\d+)?$/.test(s));
 app.use((req, res, next) => {
-  if (EMBED_ORIGINS.length && !req.path.startsWith('/api/') && req.path !== '/admin.html') {
+  // Ruta normalizada (//admin.html, /%61dmin.html…) para que el panel nunca se pueda incrustar.
+  let clean = req.path;
+  try { clean = decodeURIComponent(req.path); } catch {}
+  clean = clean.replace(/\/+/g, '/').toLowerCase();
+  if (EMBED_ORIGINS.length && !clean.startsWith('/api/') && !clean.startsWith('/admin')) {
     res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${EMBED_ORIGINS.join(' ')}`);
   } else {
     res.setHeader('X-Frame-Options', 'DENY');
@@ -155,6 +159,15 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json({ limit: '10kb' }));
+// Páginas públicas con la dirección real del sitio en las etiquetas para redes (og:image necesita URL absoluta).
+const pages = {};
+for (const [route, file] of [['/', 'index.html'], ['/index.html', 'index.html'], ['/stickers.html', 'stickers.html']]) {
+  app.get(route, (req, res) => {
+    pages[file] = pages[file] || fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
+    const host = String(req.get('host') || '').replace(/[^\w.:-]/g, ''); // la cabecera Host no es confiable
+    res.type('html').send(pages[file].replace(/__ORIGIN__/g, `${req.protocol}://${host}`));
+  });
+}
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/healthz', (req, res) => res.send('ok'));
@@ -400,7 +413,13 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
         try { meta2 = await input(files[i]).metadata(); } catch { fail('Una de las imágenes no es válida.'); }
         if (!meta2.width || meta2.width * meta2.height > MAX_INPUT_PIXELS) fail('Una de las imágenes es demasiado grande.');
         const d = meta.designs[i];
-        pieces.push({
+        // Esquinas opacas: la imagen probablemente trae fondo (se imprime un recuadro). Aviso para el taller.
+        let fondo = false;
+        try {
+          const a = await input(files[i]).ensureAlpha().extractChannel(3).resize(16, 16, { fit: 'fill' }).raw().toBuffer();
+          fondo = [0, 15, 240, 255].every((k) => a[k] > 200);
+        } catch {}
+        pieces.push({ fondo,
           wCm: Number(d.wCm.toFixed(2)), hCm: Number(d.hCm.toFixed(2)),
           qty: boxes.filter((b) => b.d === i).length,
           dpi: Math.round(meta2.width / (d.wCm / 2.54))
@@ -480,7 +499,7 @@ app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
   res.json(order);
 });
 
-const ESTADOS = ['pendiente', 'pagado', 'impreso', 'entregado'];
+const ESTADOS = ['pendiente', 'pagado', 'impreso', 'cortado', 'entregado'];
 const MIME = { png: 'image/png', pdf: 'application/pdf', svg: 'image/svg+xml' };
 app.get('/api/admin/orders/:id/download/:kind', requireAdmin, (req, res) => {
   const order = loadOrders().find((o) => o.id === req.params.id);

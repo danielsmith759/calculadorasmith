@@ -54,6 +54,8 @@ function P() {
 }
 
 const fmt = (n) => '$' + Math.round(n).toLocaleString('es-CO');
+// Números escritos con coma o punto (2,5 o 2.5).
+const num = (v) => parseFloat(String(v).trim().replace(',', '.'));
 const say = (text, cls = '') => { $('status').textContent = text; $('status').className = 'msg ' + cls; };
 const cur = () => designs[sel];
 const pieceCount = () => designs.reduce((s, d) => s + d.qty, 0);
@@ -294,7 +296,7 @@ function relayout() {
       if (product === 'vinilo') {
         q = Pricing.quoteVinyl(config, variant, { anchoCm: p.W, largoMaxCm: p.maxLen }, hasSmallPieces(boxes));
         empty = Math.max(0, Math.round((1 - used / (p.W * p.maxLen)) * 100));
-        $('stats').textContent = `${boxes.length} pieza(s) en el pliego de ${p.W} × ${p.maxLen} cm`;
+        $('stats').textContent = over ? `${boxes.length} piezas: no caben en un pliego de ${p.W} × ${p.maxLen} cm` : `${boxes.length} ${boxes.length === 1 ? 'pieza' : 'piezas'} en el pliego de ${p.W} × ${p.maxLen} cm`;
       } else {
         q = Pricing.quote(config, style, lengthCm);
         empty = Math.round((1 - used / (p.W * lengthCm)) * 100);
@@ -309,9 +311,9 @@ function relayout() {
           ? `No cabe en un pliego: necesitas ${rawLength.toFixed(1)} cm de largo y el pliego mide ${p.maxLen} cm. Reduce la medida o la cantidad, o escríbenos para pedir varios pliegos.`
           : `El montaje mide ${rawLength.toFixed(0)} cm y el máximo en línea es ${p.maxLen} cm. Reduce medidas o cantidades, o escríbenos para cotizar por metros.`)
         : '';
-      if (over) addWaLink($('limit'), 'Cotizar un pedido grande por WhatsApp', 'Hola, quiero cotizar un pedido grande de stickers.');
+      if (over) { suggestShrink(); addWaLink($('limit'), 'Cotizar un pedido grande por WhatsApp', 'Hola, quiero cotizar un pedido grande de stickers.'); }
       $('iva').textContent = over || !config.ivaPct ? '' : `+ IVA ${config.ivaPct}%: ${fmt(q.price * config.ivaPct / 100)} · Total con IVA ${fmt(q.price * (1 + config.ivaPct / 100))}`;
-      $('unit').textContent = over ? '' : `${fmt(q.price / boxes.length)} c/u con tus ${boxes.length} ${boxes.length === 1 ? 'pieza' : 'piezas'}` +
+      $('unit').textContent = over ? '' : boxes.length === 1 ? 'Escribe cuántas necesitas para ver el valor por unidad.' : `${fmt(q.price / boxes.length)} c/u con tus ${boxes.length} piezas` +
         (product === 'vinilo' && empty > 30 ? ' · llena el pliego y baja el valor por unidad sin pagar más' : '');
       $('waste').textContent = empty > 5 && !over && product !== 'vinilo'
         ? `Espacio libre en tu montaje: ${empty}%. Ese espacio se cobra porque consume material; puedes aprovecharlo agregando más imágenes sin pagar más.`
@@ -423,6 +425,36 @@ function postOrder(fd, onProgress) {
   });
 }
 const frame = () => new Promise((r) => setTimeout(r, 30)); // deja que la pantalla muestre el aviso antes de un trabajo pesado
+
+// Si no cabe, busca la medida (todas las imágenes reducidas en la misma proporción) con la que sí caben
+// las cantidades pedidas, y ofrece aplicarla con un botón.
+function suggestShrink() {
+  const p = P(), orig = designs.map((d) => [d.w, d.h]);
+  const fits = (f) => {
+    designs.forEach((d, i) => { d.w = orig[i][0] * f; d.h = orig[i][1] * f; });
+    const b = packDesigns(designs.map((d) => d.qty), p);
+    return !!b && rawLengthOf(b) <= p.maxLen + 1e-9;
+  };
+  let lo = 0.05, hi = 1;
+  if (fits(lo)) { for (let k = 0; k < 14; k++) { const m = (lo + hi) / 2; if (fits(m)) lo = m; else hi = m; } }
+  else lo = 0;
+  designs.forEach((d, i) => { d.w = orig[i][0]; d.h = orig[i][1]; });
+  const f = Math.floor(lo * 100) / 100;
+  if (f < 0.1) return;
+  const d0 = designs[0];
+  const label = designs.length === 1 ? `Usar ${(Math.floor(Math.max(d0.w, d0.h) * f * 10) / 10).toLocaleString('es-CO')} cm (caben las ${d0.qty})` : `Reducir todas al ${Math.round(f * 100)} % (caben todas)`;
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'sec'; btn.style.cssText = 'width:auto;display:block;margin-top:8px';
+  btn.textContent = label;
+  btn.addEventListener('click', () => {
+    if (busy) return;
+    // Se baja un poco más si el redondeo a 0,1 cm no alcanza.
+    designs.forEach((d) => { const big = Math.max(d.w, d.h), nb = Math.floor(big * f * 10) / 10; d.w = d.w * nb / big; d.h = d.h * nb / big; });
+    if (cur()) select(sel);
+    relayout();
+  });
+  $('limit').appendChild(btn);
+}
 
 // Enlace de WhatsApp del negocio (si está configurado).
 function addWaLink(el, label, text) {
@@ -593,7 +625,8 @@ const hasSmallPieces = (boxes) => boxes.some((b) => Pricing.isSmall(config, ...r
 function updateBar() {
   const show = !!montage && !montage.over && !sent && !barHidden;
   $('stickyBar').classList.toggle('hidden', !show);
-  if (show) $('barPrice').textContent = `${$('price').textContent} · ${$('unit').textContent.split(' · ')[0]}`;
+  const one = montage && montage.boxes.length === 1;
+  if (show) $('barPrice').textContent = one ? `${$('price').textContent} · pon la cantidad` : `${$('price').textContent} · ${$('unit').textContent.split(' · ')[0]}`;
 }
 let barHidden = false;
 
@@ -808,14 +841,14 @@ function setBusy(on) {
 }
 
 $('w').addEventListener('input', () => {
-  const w = parseFloat($('w').value);
+  const w = num($('w').value);
   if (!(w >= 0.5)) { $('sizeWarn').textContent = 'Escribe un ancho de al menos 0,5 cm.'; return; }
   cur().w = w; cur().h = w * cur().ratio; $('h').value = cur().h.toFixed(1);
   $('sizeWarn').textContent = '';
   updateInfo(); relayout();
 });
 $('h').addEventListener('input', () => {
-  const h = parseFloat($('h').value);
+  const h = num($('h').value);
   if (!(h >= 0.5)) { $('sizeWarn').textContent = 'Escribe un alto de al menos 0,5 cm.'; return; }
   cur().h = h; cur().w = h / cur().ratio; $('w').value = cur().w.toFixed(1);
   $('sizeWarn').textContent = '';
@@ -912,7 +945,7 @@ $('gap').addEventListener('input', () => {
 });
 $('gap').addEventListener('change', () => { $('gap').value = Math.round(gapCm * 100) / 10; $('gapWarn').textContent = ''; });
 $('offset').addEventListener('input', () => {
-  const mm = parseFloat($('offset').value);
+  const mm = num($('offset').value);
   const v = config.vinilo;
   if (!(mm >= v.margenCorteMinCm * 10 && mm <= v.margenCorteMaxCm * 10)) {
     $('offsetWarn').textContent = `El margen de corte debe estar entre ${v.margenCorteMinCm * 10} y ${v.margenCorteMaxCm * 10} mm.`;
@@ -1080,6 +1113,7 @@ $('btnColor').addEventListener('click', async () => {
       px[i + 3] = Math.round(px[i + 3] * a);
     }
   }
+  if (!count && d.cleaned) { say('El fondo ya está quitado. Si quedan puntos o rayas sueltas, usa «Borrar restos sueltos».', 'ok'); return; }
   if (!count) { say('No se encontró fondo de ese color. Sube la «Sensibilidad» en Ajustes avanzados o toca el fondo para elegir el color.', 'err'); return; }
   saveUndo(d);
   ctx.putImageData(img, 0, 0);
@@ -1166,12 +1200,19 @@ function exportDesign(d) {
   return new Promise((r) => c.toBlob(r, 'image/png'));
 }
 
+let lowOk = false; // el cliente ya vio el aviso de resolución
 $('send').addEventListener('click', async () => {
   const out = $('result');
   out.className = 'msg';
   if (!montage || montage.over || sent) return;
   const low = designs.filter((d) => dpiOf(d) < DPI_WARN).length;
-  if (low && !confirm(`${low === 1 ? 'Una imagen tiene' : `${low} imágenes tienen`} poca resolución y puede${low === 1 ? '' : 'n'} verse borrosa${low === 1 ? '' : 's'}. ¿Enviar el pedido así de todos modos?`)) return;
+  if (low && !lowOk) {
+    lowOk = true;
+    out.className = 'msg warn';
+    out.textContent = `${low === 1 ? 'Una imagen es pequeña' : `${low} imágenes son pequeñas`} para la medida elegida y puede${low === 1 ? '' : 'n'} verse borrosa${low === 1 ? '' : 's'}. ` +
+      'Si tienes el archivo original más grande, súbelo. Si quieres enviarlo así, pulsa «Enviar pedido» otra vez.';
+    return;
+  }
   setBusy(true);
   $('send').disabled = true;
   out.textContent = 'Preparando y enviando tus archivos… no cierres la página.';
@@ -1231,6 +1272,18 @@ $('send').addEventListener('click', async () => {
       `Total estimado ${fmt(data.price)} + IVA` + (config.ivaPct ? ` (con IVA ${fmt(data.price * (1 + config.ivaPct / 100))})` : '') + '. ',
       `Revisamos tu archivo y te escribimos por WhatsApp${config.comercial && config.comercial.respuesta ? ' ' + config.comercial.respuesta : ''} para confirmar y coordinar el pago.`);
     $('print').classList.remove('hidden');
+    // Resumen que sale al guardar o imprimir la cotización (sin el montaje, que es del taller).
+    const ps = $('printSummary');
+    ps.innerHTML = '';
+    const line = (k, v) => { const r = document.createElement('p'); r.innerHTML = '<b></b> '; r.firstChild.textContent = k; r.append(v); ps.appendChild(r); };
+    const h = document.createElement('h2'); h.textContent = `Cotización ${data.ref}`; ps.appendChild(h);
+    line('Fecha:', new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }));
+    line('Cliente:', `${$('name').value}${$('bEmpresa').value ? ' · ' + $('bEmpresa').value : ''}${$('bNit').value ? ' · NIT ' + $('bNit').value : ''} · WhatsApp ${$('phone').value}`);
+    line('Producto:', prodName);
+    designs.forEach((d, i) => line(`Imagen ${i + 1}:`, `${montage.boxes.filter((b) => b.d === i).length} u. de ${d.w.toFixed(1)} × ${d.h.toFixed(1)} cm · forma ${({ silueta: 'silueta', circulo: 'círculo', redondeado: 'cuadro redondeado', rectangulo: 'rectángulo' })[d.shape] || d.shape}`));
+    line('Total:', `${fmt(data.price)} + IVA` + (config.ivaPct ? ` · IVA ${config.ivaPct}%: ${fmt(data.price * config.ivaPct / 100)} · Total con IVA ${fmt(data.price * (1 + config.ivaPct / 100))}` : ''));
+    line('Valor por unidad:', `${fmt(data.price / montage.boxes.length)} (${montage.boxes.length} piezas)`);
+    line('Nota:', 'Cotización sujeta a revisión del archivo final. Te escribiremos por WhatsApp para confirmar.');
     const wa = config.contacto && config.contacto.whatsapp;
     if (wa) {
       const a = document.createElement('a');
@@ -1272,7 +1325,7 @@ fetch('/api/config').then((r) => { if (!r.ok) throw new Error(); return r.json()
   $('offset').min = c.vinilo.margenCorteMinCm * 10; $('offset').max = c.vinilo.margenCorteMaxCm * 10; $('offset').value = c.vinilo.margenCorteCm * 10;
   renderInfo();
   // ?producto=vinilo abre directo el cotizador de vinilo (enlaces para la web, redes y WhatsApp).
-  setProduct(new URLSearchParams(location.search).get('producto') === 'vinilo' ? 'vinilo' : 'dtf');
+  setProduct((new URLSearchParams(location.search).get('producto') || '').toLowerCase() === 'dtf' ? 'dtf' : 'vinilo');
   updateSend();
 }).catch(() => {
   const m = document.createElement('p');

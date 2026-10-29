@@ -46,7 +46,9 @@ const $ = (id) => document.getElementById(id);
 const fmt = (n) => '$' + Math.round(n).toLocaleString('es-CO');
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const ESTADOS = ['pendiente', 'pagado', 'impreso', 'entregado'];
+const ESTADOS = ['pendiente', 'pagado', 'impreso', 'cortado', 'entregado'];
+// Búsqueda sin tildes ni mayúsculas ("nandu" encuentra "Ñandú").
+const plain = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 $('fEstado').innerHTML += ESTADOS.map((e) => `<option value="${e}">${e[0].toUpperCase() + e.slice(1)}</option>`).join('');
 let orders = [], estilos = {};
 fetch('/api/config').then((r) => r.json()).then((c) => { for (const e of c.estilos) estilos[e.id] = e.nombre; render(); }).catch(() => {});
@@ -60,9 +62,9 @@ async function load() {
   render();
 }
 function render() {
-  const q = $('q').value.trim().toLowerCase(), est = $('fEstado').value;
+  const q = plain($('q').value.trim()), est = $('fEstado').value;
   const list = orders.filter((o) => (!est || o.status === est) &&
-    (!q || [o.id.slice(0, 8), o.name, o.phone, o.note, o.billing && o.billing.nit, o.billing && o.billing.empresa].join(' ').toLowerCase().includes(q)));
+    (!q || [o.id.slice(0, 8), o.name, o.phone, o.note, o.billing && o.billing.nit, o.billing && o.billing.empresa].map(plain).join(' ').includes(q)));
   $('count').textContent = `${list.length} de ${orders.length} pedidos`;
   $('rows').innerHTML = list.map((o) => `
     <tr>
@@ -71,9 +73,9 @@ function render() {
       <td>${esc(o.name)}<br><span class="muted">${wa(o.phone) ? `<a href="${wa(o.phone)}" target="_blank" rel="noopener">${esc(o.phone)}</a>` : esc(o.phone)}${o.note ? ' · ' + esc(o.note) : ''}${o.billing ? '<br>Factura: ' + esc([o.billing.empresa, o.billing.nit && 'NIT ' + o.billing.nit, o.billing.correo].filter(Boolean).join(' · ')) : ''}</span></td>
       <td>${esc(estilos[o.style] || o.style)}${o.maquina ? `<br><span class="muted">${esc(o.maquina)}</span>` : ''}${o.product === 'vinilo' ? `<br><span class="muted">${o.cutType === 'total' ? 'Corte total' : 'Medio corte'} · margen ${Math.round(o.offsetCm * 100) / 10} mm${(o.capas || []).length ? ' · capas: ' + o.capas.map(esc).join(' + ') : ''}</span>` : ''}</td>
       <td>${o.product === 'vinilo' ? o.widthCm : 58} × ${o.lengthCm} cm<br><span class="muted">${o.pieces} pzas · ${o.emptyPct}% vacío${o.gapCm ? ' · sep. ' + Math.round(o.gapCm * 10) + ' mm' : ''}</span>${(o.items || []).map((p) =>
-        `<br><span class="${p.dpi < 150 ? 'err' : 'muted'}">${p.qty}× ${p.wCm}×${p.hCm} cm · ${p.dpi} ppp${p.dpi < 150 ? ' (baja)' : ''}</span>`).join('')}</td>
+        `<br><span class="${p.dpi < 150 ? 'err' : 'muted'}">${p.qty}× ${p.wCm}×${p.hCm} cm · ${p.dpi} ppp${p.dpi < 150 ? ' (baja)' : ''}${p.fondo ? ' · <b>fondo opaco</b>' : ''}</span>`).join('')}</td>
       <td>${fmt(o.price)}<br><span class="muted">${esc(o.detalle)}</span></td>
-      <td><select data-id="${esc(o.id)}" aria-label="Estado del pedido ${esc(o.id.slice(0, 8).toUpperCase())}">${ESTADOS.map((e) => `<option${e === o.status ? ' selected' : ''}>${e}</option>`).join('')}</select></td>
+      <td><select style="min-width:130px" data-id="${esc(o.id)}" data-prev="${esc(o.status)}" aria-label="Estado del pedido ${esc(o.id.slice(0, 8).toUpperCase())}">${ESTADOS.map((e) => `<option${e === o.status ? ' selected' : ''}>${e}</option>`).join('')}</select></td>
       <td>${(o.files || ['png']).map((k) => `<a href="/api/admin/orders/${esc(o.id)}/download/${k}">${k === 'svg' ? 'Corte SVG' : 'Descargar ' + k.toUpperCase()}</a>`).join(' ')}</td>
     </tr>`).join('') || '<tr><td colspan="8">Sin pedidos</td></tr>';
 }
@@ -88,7 +90,9 @@ $('logout').addEventListener('click', async () => { await fetch('/api/admin/logo
 $('rows').addEventListener('change', async (e) => {
   const sel = e.target.closest('select[data-id]');
   if (!sel) return;
-  await fetch('/api/admin/orders/' + sel.dataset.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: sel.value }) });
+  if (sel.value === 'entregado' && !confirm('¿Marcar este pedido como entregado?')) { sel.value = sel.dataset.prev; return; }
+  const r = await fetch('/api/admin/orders/' + sel.dataset.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: sel.value }) });
+  if (!r.ok) alert('No se pudo cambiar el estado. Revisa tu sesión e intenta de nuevo.');
   load();
 });
 $('q').addEventListener('input', render);

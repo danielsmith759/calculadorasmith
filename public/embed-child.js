@@ -9,7 +9,8 @@
     if (window.parent === window || !window.ResizeObserver) return;
     var last = 0;
     var send = function () {
-      var h = document.documentElement.scrollHeight;
+      // Alto del contenido (no del iframe), para que también se encoja al cerrar secciones.
+      var h = Math.ceil(document.body.getBoundingClientRect().height + parseFloat(getComputedStyle(document.body).marginTop) + parseFloat(getComputedStyle(document.body).marginBottom));
       if (h !== last) { last = h; window.parent.postMessage({ type: 'smith-alto', alto: h }, (location.ancestorOrigins && location.ancestorOrigins[0]) || '*'); }
     };
     new ResizeObserver(send).observe(document.body);

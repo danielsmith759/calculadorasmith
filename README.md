@@ -72,7 +72,7 @@ Para que funcione la incrustación hay que autorizar el dominio de tu web en el 
 - `EMBED_ORIGINS` = `https://tuweb.com,https://www.tuweb.com` (acepta `https://*.tuweb.com`). Sin esto el navegador bloquea el iframe. El panel `/admin.html` y la API nunca se pueden incrustar.
 - `WHATSAPP` = número con indicativo de país, sin signos, por ejemplo `573001234567`. Al terminar el pedido aparece el botón "Escribirnos por WhatsApp con mi referencia" (el mensaje se edita en `contacto.mensaje` de `config.json`).
 
-Notas: en WordPress usa el bloque "HTML personalizado" (o un plugin de código en el encabezado para el botón flotante); en Wix "Insertar código → HTML"; en Shopify, una sección con HTML personalizado. El modo incrustado oculta el logo, ajusta solo el alto de la página y abre la vista ampliada del montaje en una pestaña nueva.
+Notas: en WordPress usa el bloque "HTML personalizado" (o un plugin de código en el encabezado para el botón flotante); en Wix "Insertar código → HTML"; en Shopify, una sección con HTML personalizado. El modo incrustado oculta el logo, ajusta solo el alto de la página (crece y se encoge) y amplía el montaje en el mismo lugar, sin dejarlo descargar. En el modo botón, cerrar la ventana no borra el trabajo del cliente.
 
 ### Pruebas
 

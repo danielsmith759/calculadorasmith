@@ -2,9 +2,10 @@
 // y el valor por unidad, con los mismos precios y reglas del cotizador.
 (function () {
   const $ = (id) => document.getElementById(id);
+  const num = (v) => Number(String(v).trim().replace(',', '.')); // acepta 2,5 y 2.5
   const fmt = (n) => '$' + Math.round(n).toLocaleString('es-CO');
   const cm = (n) => (Math.round(n * 10) / 10).toLocaleString('es-CO');
-  const SIZES = [2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 30];
+  const SIZES = [2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 30];
   let config, products, prod;
 
   // Medidas y precio de referencia de cada producto.
@@ -26,7 +27,7 @@
     const gap = Number($('cgap').value) / 10;
     if (prod.kind === 'dtf') return { a: w, b: h, g: gap, gap };
     if ($('cshape').value === 'recto') return { a: w, b: h, g: 0, gap };
-    const off = Number($('coff').value) / 10;
+    const off = num($('coff').value) / 10;
     return { a: w + 2 * off, b: h + 2 * off, g: gap, gap, off };
   }
   // Largo útil: se descuenta la franja con el nombre del cliente al final del montaje.
@@ -65,8 +66,8 @@
   }
 
   function valid() {
-    const w = Number($('cw').value), h = Number($('ch').value);
-    const gap = Number($('cgap').value), off = Number($('coff').value);
+    const w = num($('cw').value), h = num($('ch').value);
+    const gap = Number($('cgap').value), off = num($('coff').value);
     const src = prod.kind === 'dtf' ? config : config.vinilo;
     if (!(w >= 0.5 && h >= 0.5)) return 'Escribe ancho y alto de al menos 0,5 cm.';
     if (!(gap >= src.separacionCm * 10 && gap <= src.separacionMaxCm * 10)) return `La separación debe estar entre ${src.separacionCm * 10} y ${src.separacionMaxCm * 10} mm.`;
@@ -80,7 +81,7 @@
     const err = valid();
     $('cwarn').textContent = err;
     if (err) return;
-    const w = Number($('cw').value), h = Number($('ch').value);
+    const w = num($('cw').value), h = num($('ch').value);
     const A = area(), p = piece(w, h);
     const rects = count(w, h);
     const n = rects.length;
@@ -97,9 +98,9 @@
     const price = basePrice(Math.max(w, h));
     const unit = price / n;
     const small = prod.kind !== 'dtf' && Pricing.isSmall(config, w, h);
-    $('ccount').textContent = `${n.toLocaleString('es-CO')} stickers`;
+    const cap = n >= (prod.kind === 'dtf' ? config.maxPiezas : config.vinilo.maxPiezas);
+    $('ccount').textContent = `${n.toLocaleString('es-CO')}${cap ? ' (máx.)' : ''} stickers`;
     $('cunit').textContent = `${fmt(unit)} c/u · ${A.unitLabel} ${fmt(price)}${small ? ' (tarifa de corte pequeño, menos de 3 cm)' : ''}`;
-    quoteText = `${prod.name} · stickers de ${cm(w)} × ${cm(h)} cm\nCaben ${n} en ${A.where}\nValor por unidad: ${fmt(unit)} (${A.unitLabel} ${fmt(price)})`;
 
     const qty = Math.min(1e5, Math.floor(Number($('cqty').value)));
     if (qty >= 1) {
@@ -129,11 +130,28 @@
       $('ccount').textContent = `${fmt(big[0])} c/u`;
       $('cunit').textContent = `Total ${fmt(big[1])} por ${qty.toLocaleString('es-CO')} stickers · caben ${n.toLocaleString('es-CO')} por ${A.unitLabel}${small ? ' (tarifa de corte pequeño, menos de 3 cm)' : ''}`;
       $('cqtyRes').classList.remove('hidden');
-      quoteText += `\n${line}`;
-    } else $('cqtyRes').classList.add('hidden');
-    quoteText += '\nIVA no incluido.';
+      quoteText = waText(w, h, qty, big[1], line);
+    } else {
+      $('cqtyRes').classList.add('hidden');
+      quoteText = waText(w, h, 0, price, `Caben ${n.toLocaleString('es-CO')} en ${A.where}: ${fmt(unit)} c/u llenándolo`);
+    }
     draw(rects, A, p);
     renderTable(w / h);
+  }
+
+  // Texto listo para pegar en WhatsApp: un solo valor por unidad, total, IVA y enlace para pedir.
+  function waText(w, h, qty, total, detail) {
+    const iva = config.ivaPct || 0;
+    const shape = prod.kind === 'dtf' ? '' : ($('cshape').value === 'recto' ? ', rectangulares' : ', cortados a la forma');
+    const lines = [`*Cotización ${(config.contacto && config.contacto.negocio) || 'Smith Impresores'}*`,
+      `${prod.name}: stickers de ${cm(w)} × ${cm(h)} cm${shape}`];
+    if (qty) lines.push(`Cantidad: ${qty.toLocaleString('es-CO')} · ${fmt(total / qty)} c/u`, `Total: ${fmt(total)} + IVA`);
+    else lines.push(detail, `Valor: ${fmt(total)} + IVA`);
+    if (iva) lines.push(`IVA ${iva}%: ${fmt(total * iva / 100)} · *Total con IVA: ${fmt(total * (1 + iva / 100))}*`);
+    if (qty) lines.push(`(${detail.replace(/^[\d.]+ stickers: /, '')})`);
+    lines.push('Sujeto a revisión del archivo final.');
+    if (location.protocol.startsWith('http')) lines.push(`Haz tu pedido aquí: ${location.origin}/?producto=${prod.kind === 'dtf' ? 'dtf' : 'vinilo'}`);
+    return lines.join('\n');
   }
 
   // Vista del pliego o del metro con los stickers acomodados.
@@ -168,7 +186,7 @@
     }).filter((r) => r.n > 0 && Math.min(r.w, r.h) >= 0.5);
     const A = area();
     $('ctable').innerHTML = `<thead><tr><th>Medida</th><th>Caben por ${A.unitLabel}</th><th>Valor c/u</th></tr></thead><tbody>${rows.map((r, i) =>
-      `<tr data-i="${i}"><td>${cm(r.w)} × ${cm(r.h)} cm</td><td>${r.n.toLocaleString('es-CO')}</td><td>${fmt(basePrice(Math.max(r.w, r.h)) / r.n)}</td></tr>`).join('')}</tbody>`;
+      `<tr data-i="${i}"><td>${cm(r.w)} × ${cm(r.h)} cm${prod.kind !== 'dtf' && Pricing.isSmall(config, r.w, r.h) ? '<span class="tag">corte pequeño</span>' : ''}</td><td>${r.n.toLocaleString('es-CO')}${r.n >= (prod.kind === 'dtf' ? config.maxPiezas : config.vinilo.maxPiezas) ? ' (máx.)' : ''}</td><td>${fmt(basePrice(Math.max(r.w, r.h)) / r.n)}</td></tr>`).join('')}</tbody>`;
     $('ctable').querySelectorAll('tr[data-i]').forEach((tr) => {
       tr.tabIndex = 0; tr.setAttribute('role', 'button');
       tr.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tr.click(); } });
@@ -184,9 +202,9 @@
 
   let ratio = 1;
   const keep = () => $('clock').checked && ratio > 0;
-  $('cw').addEventListener('input', () => { const w = Number($('cw').value); if (keep() && w > 0) $('ch').value = Math.round(w * ratio * 10) / 10; update(); });
-  $('ch').addEventListener('input', () => { const h = Number($('ch').value); if (keep() && h > 0) $('cw').value = Math.round((h / ratio) * 10) / 10; update(); });
-  $('clock').addEventListener('change', () => { ratio = Number($('ch').value) / Number($('cw').value) || 1; });
+  $('cw').addEventListener('input', () => { const w = num($('cw').value); if (keep() && w > 0) $('ch').value = Math.round(w * ratio * 10) / 10; update(); });
+  $('ch').addEventListener('input', () => { const h = num($('ch').value); if (keep() && h > 0) $('cw').value = Math.round((h / ratio) * 10) / 10; update(); });
+  $('clock').addEventListener('change', () => { ratio = num($('ch').value) / num($('cw').value) || 1; });
   for (const id of ['cgap', 'coff', 'cqty', 'cshape']) $(id).addEventListener('input', update);
   $('ccopy').addEventListener('click', async () => {
     if (!quoteText) return;
