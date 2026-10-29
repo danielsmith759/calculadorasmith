@@ -1,6 +1,9 @@
 const $ = (id) => document.getElementById(id);
 const ALPHA_MIN = 10;      // alfa mínimo para considerar un píxel como parte del diseño
-const WORK_MAX = 3000;     // lado máximo (px) para editar en el navegador
+// iPhone/iPad (Safari): poca memoria para lienzos y un máximo de ~16,7 millones de píxeles por lienzo.
+const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const CANVAS_MAX_PX = 16e6;  // área máxima segura de un lienzo en todos los navegadores
+const WORK_MAX = IOS ? 2200 : 3000; // lado máximo (px) para editar en el navegador
 const MAX_DESIGNS = 30;    // imágenes distintas por pedido (memoria del navegador)
 const DPI_WARN = 150;      // por debajo de esto la impresión puede verse pixelada
 const DPI_BAD = 72;
@@ -99,7 +102,7 @@ function trim(src) {
 
 // Forma del sticker: pone el logo (ya recortado) dentro de un círculo, cuadro redondeado o rectángulo
 // del color elegido. La figura queda como parte de la imagen, así el corte, el blanco y el precio la siguen solos.
-const SHAPE_MAX = 4000; // lado máximo (px) de la imagen con forma
+const SHAPE_MAX = IOS ? 2800 : 3900; // lado máximo (px) de la imagen con forma (área < CANVAS_MAX_PX)
 function applyShape(src, shape, color, padPct) {
   if (!shape || shape === 'silueta') return src;
   const { width: w, height: h } = src;
@@ -490,7 +493,7 @@ function drawMontage() {
   const L = sheet ? p.maxLen : montage.lengthCm;
   const cssW = Math.max(280, $('montageBox').clientWidth - 16);
   // Resolución según la pantalla (nítido también en celular) con un tope de tamaño.
-  const s = Math.min(40, (cssW * Math.min(2, window.devicePixelRatio || 1)) / p.W, 5000 / Math.max(p.W, L));
+  const s = Math.min(40, (cssW * Math.min(2, window.devicePixelRatio || 1)) / p.W, 5000 / Math.max(p.W, L), Math.sqrt((IOS ? 9e6 : CANVAS_MAX_PX) / (p.W * L)));
   const k = s / 8; // grosor de líneas relativo a la escala
   const c = $('montage');
   c.width = Math.round(p.W * s);
@@ -735,6 +738,11 @@ function renderChips() {
 }
 
 function removeDesign(i) {
+  // Safari no libera la memoria de un lienzo hasta que se le pone tamaño 0.
+  const gone = designs[i];
+  for (const k of ['working', 'logo', 'design', 'thumb']) if (gone[k] && gone[k] !== gone.design) { gone[k].width = 0; gone[k].height = 0; }
+  if (gone.design) { gone.design.width = 0; gone.design.height = 0; }
+  if (gone.undo) { gone.undo.canvas.width = 0; gone.undo = null; }
   designs.splice(i, 1);
   if (!designs.length) { sel = -1; $('editor').classList.add('hidden'); }
   else {
