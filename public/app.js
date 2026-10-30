@@ -368,7 +368,9 @@ function cutFor(d) {
   const px = ctx.getImageData(0, 0, cw, ch).data;
   const alpha = new Uint8Array(cw * ch);
   for (let i = 0; i < alpha.length; i++) alpha[i] = px[i * 4 + 3];
-  const polys = Contour.cutContours(alpha, cw, ch, cw / d.w, offsetCm);
+  const corte = config.vinilo.corte || {};
+  const polys = Contour.cutContours(alpha, cw, ch, cw / d.w, offsetCm,
+    { radiusCm: corte.radioMinimoCm || 0, check: { minWidthCm: corte.anchoMinimoCm, minSizeCm: corte.tamanoMinimoCm } });
   d.cut = { key, src: d.design, polys };
   return polys;
 }
@@ -544,10 +546,10 @@ function drawMontage() {
       ctx.strokeStyle = '#e0007a'; ctx.lineWidth = 1.2 * k; ctx.setLineDash([4 * k, 3 * k]);
       for (const poly of (isRect(dz) ? Contour.rectContour(dz.w, dz.h, 0) : cutFor(dz))) {
         ctx.beginPath();
-        poly.forEach(([px, py], i) => {
-          const [X, Y] = b.rot ? [x + (dz.h - py), y + px] : [x + px, y + py];
-          i ? ctx.lineTo(X * s, Y * s) : ctx.moveTo(X * s, Y * s);
-        });
+        const at = ([px, py]) => (b.rot ? [(x + (dz.h - py)) * s, (y + px) * s] : [(x + px) * s, (y + py) * s]);
+        ctx.moveTo(...at(poly[0]));
+        if (poly.smooth) for (const q of Contour.bezier(poly)) ctx.bezierCurveTo(...at([q[0], q[1]]), ...at([q[2], q[3]]), ...at([q[4], q[5]]));
+        else poly.slice(1).forEach((pt) => ctx.lineTo(...at(pt)));
         ctx.closePath(); ctx.stroke();
       }
       ctx.restore();
@@ -791,8 +793,19 @@ function drawPreview() {
 }
 
 // Avisos de la imagen seleccionada: resolución y fondo sin quitar.
+function updateCutWarn(d) {
+  let msg = '';
+  if (product === 'vinilo' && d && d.design && !isRect(d)) {
+    const ck = cutFor(d).check || {};
+    const c = config.vinilo.corte || {};
+    if (ck.thin) msg = `La línea de corte tiene partes de menos de ${(c.anchoMinimoCm || 0.2) * 10} mm de ancho (uniones o puntas muy finas) que la cuchilla puede romper. Aumenta el borde blanco o la medida, o elige la forma círculo o cuadro.`;
+    else if (ck.tiny) msg = `Hay ${ck.tiny} recorte${ck.tiny === 1 ? '' : 's'} de menos de ${(c.tamanoMinimoCm || 0.3) * 10} mm que la cuchilla no corta bien. Usa «Borrar restos sueltos» o aumenta la medida.`;
+  }
+  $('cutWarn').textContent = msg;
+}
 function updateInfo() {
   const d = cur();
+  updateCutWarn(d);
   const dpi = dpiOf(d);
   $('dpiInfo').className = 'msg ' + (dpi < DPI_BAD ? 'err' : dpi < DPI_WARN ? 'warn' : 'ok');
   $('dpiInfo').textContent = dpi < DPI_WARN
@@ -962,6 +975,7 @@ $('offset').addEventListener('input', () => {
   $('offsetWarn').textContent = '';
   offsetCm = mm / 10;
   relayout();
+  updateCutWarn(cur());
 });
 
 // Cambio de producto: ajusta separación, límites, precios y aclaraciones.

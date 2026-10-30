@@ -334,7 +334,10 @@ async function buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, outBase
     }
     images.push({ width: info.width, height: info.height, rgba: data, white, gloss: capas.includes('brillo') ? solid : null });
     const { alpha, cw, ch, rect } = prep[i];
-    contours.push(rect ? null : Contour.cutContours(alpha, cw, ch, cw / d.wCm, P.off));
+    // Esquinas interiores con radio mínimo y revisión de partes finas o diminutas (config.vinilo.corte).
+    const corte = v.corte || {};
+    contours.push(rect ? null : Contour.cutContours(alpha, cw, ch, cw / d.wCm, P.off,
+      { radiusCm: corte.radioMinimoCm || 0, check: { minWidthCm: corte.anchoMinimoCm, minSizeCm: corte.tamanoMinimoCm } }));
   }
   const pieces = [], cuts = [], rectBoxes = [];
   for (const b of boxes) {
@@ -344,7 +347,11 @@ async function buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, outBase
     pieces.push({ img: b.d, x, y, w: d.wCm, h: d.hCm, rot: b.rot });
     // Rectangulares: corte recto justo en el borde, compartido con la pieza vecina.
     if (prep[b.d].rect) rectBoxes.push([x, y, x + b.w, y + b.h]);
-    else for (const poly of contours[b.d]) cuts.push(poly.map(([px, py]) => mapPoint(px, py, x, y, d.wCm, d.hCm, b.rot)));
+    else for (const poly of contours[b.d]) {
+      const m = poly.map(([px, py]) => mapPoint(px, py, x, y, d.wCm, d.hCm, b.rot));
+      m.smooth = poly.smooth;
+      cuts.push(m);
+    }
   }
   for (const line of Contour.gridLines(rectBoxes)) { line.open = true; cuts.push(line); }
   const pageW = P.W + 2 * M, pageH = lengthCm + 2 * M;
@@ -360,6 +367,12 @@ async function buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, outBase
   });
   fs.writeFileSync(outBase + '.pdf', pdf);
   fs.writeFileSync(outBase + '.svg', buildCutSvg(pageW, pageH, cuts, marks));
+  // Metros de corte (largo total de las líneas) para el panel y para estimar el trabajo de la plotter.
+  let cm = 0;
+  for (const c of cuts) for (let i = 0; i < c.length - (c.open ? 1 : 0); i++) {
+    const a = c[i], b = c[(i + 1) % c.length]; cm += Math.hypot(b[0] - a[0], b[1] - a[1]);
+  }
+  return { checks: contours.map((c) => (c ? c.check : null)), cutM: Math.round(cm) / 100 };
 }
 
 const tooBig = (req, res, next) => {
@@ -429,10 +442,10 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
       if (waiting >= MAX_WAITING) return res.status(503).json({ error: 'Estamos procesando otros pedidos. Intenta de nuevo en un minuto.' });
       const id = crypto.randomBytes(16).toString('hex');
       waiting++;
-      let dpi = null;
+      let dpi = null, built = null;
       try {
         await exclusive(async () => {
-          if (vinyl) await buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, path.join(FILES_DIR, id), prep);
+          if (vinyl) built = await buildVinyl(meta, files, boxes, P, labelY, lengthCm, name, path.join(FILES_DIR, id), prep);
           else dpi = await composeMontage(meta, files, boxes, lengthCm, label, labelY, path.join(FILES_DIR, `${id}.png`));
         });
       } finally { waiting--; }
@@ -443,6 +456,8 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
         ? Pricing.quoteVinyl(config, meta.variant, { anchoCm: P.W, largoMaxCm: P.maxLen }, hasSmall)
         : Pricing.quote(config, meta.style, lengthCm);
       const usedCm2 = boxes.reduce((s, b) => s + b.w * b.h, 0);
+      // Revisión del corte por diseño (vinilo), para que el taller la vea en el panel.
+      if (built) built.checks.forEach((c, i) => { if (c && pieces[i]) { pieces[i].corteFino = c.thin; pieces[i].diminutos = c.tiny; } });
       const orders = loadOrders();
       orders.unshift({
         id, name, phone, note, ...(Object.keys(billing).length ? { billing } : {}),
@@ -453,6 +468,7 @@ app.post('/api/orders', limit('orders', 20, 60 * 60 * 1000), tooBig,
           capas: P.capas,
           cutType: meta.cutType, offsetCm: meta.offsetCm, widthCm: Number(usedWidth.toFixed(2)),
           maquina: P.variant.maquina || '',
+          corteM: built ? built.cutM : null,
           pageCm: [P.W + 2 * config.vinilo.margenCm, Number((lengthCm + 2 * config.vinilo.margenCm).toFixed(2))]
         } : {}),
         gapCm: meta.gapCm,

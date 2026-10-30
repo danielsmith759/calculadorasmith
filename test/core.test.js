@@ -96,3 +96,24 @@ test('Entradas inválidas no cuelgan ni lanzan errores confusos', () => {
   assert.throws(() => Pricing.quote(config, 'premium', NaN));
   assert.throws(() => Pricing.quoteVinyl(config, 'nada', { anchoCm: 1, largoMaxCm: 1 }));
 });
+
+test('Corte: curvas cerradas, radio mínimo de esquina y revisión de partes finas', () => {
+  // Dos círculos unidos por una tira de 1 mm: con margen de 0,5 mm la unión queda más angosta que 2 mm.
+  const ppc = 40, W = 4 * ppc, H = 2 * ppc, a = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const c1 = Math.hypot(x - 0.8 * ppc, y - H / 2) < 0.7 * ppc, c2 = Math.hypot(x - 3.2 * ppc, y - H / 2) < 0.7 * ppc;
+    const bar = Math.abs(y - H / 2) < 0.05 * ppc && x > 0.8 * ppc && x < 3.2 * ppc;
+    a[y * W + x] = c1 || c2 || bar ? 255 : 0;
+  }
+  const thin = Contour.cutContours(a, W, H, ppc, 0.05, { radiusCm: 0.1, check: { minWidthCm: 0.2, minSizeCm: 0.4 } });
+  assert.strictEqual(thin.length, 1);
+  assert.strictEqual(thin.check.thin, true);
+  const ok = Contour.cutContours(a, W, H, ppc, 0.15, { radiusCm: 0.1, check: { minWidthCm: 0.2, minSizeCm: 0.4 } });
+  assert.strictEqual(ok.check.thin, false);
+  // Curvas: un tramo por punto, que termina en el siguiente punto y cierra en el primero.
+  const p = ok[0];
+  assert.ok(p.smooth);
+  const bz = Contour.bezier(p);
+  assert.strictEqual(bz.length, p.length);
+  assert.deepStrictEqual(bz[bz.length - 1].slice(4), p[0]);
+});

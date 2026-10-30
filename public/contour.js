@@ -133,26 +133,88 @@
 
   // alpha: Uint8 (w*h) del diseño a pxPerCm píxeles por cm. Devuelve polígonos en cm,
   // con origen en la esquina superior izquierda del diseño (pueden salir a negativo por el margen).
-  function cutContours(alpha, w, h, pxPerCm, offsetCm, threshold = 128) {
+  // opts: { threshold (alfa mínimo, 128), radiusCm (radio mínimo de esquina interior),
+  //         check: { minWidthCm, minSizeCm } (revisión de partes finas o diminutas) }.
+  // Por compatibilidad, opts también puede ser solo el umbral (número).
+  function cutContours(alpha, w, h, pxPerCm, offsetCm, opts = {}) {
+    if (typeof opts === 'number') opts = { threshold: opts };
+    const threshold = opts.threshold || 128;
     const r = offsetCm * pxPerCm;
-    const pad = Math.ceil(r) + 2;
-    const W = w + 2 * pad, H = h + 2 * pad;
-    const mask = new Uint8Array(W * H);
+    const rc = (opts.radiusCm || 0) * pxPerCm;
+    const pad = Math.ceil(r + rc) + 2;
+    const W = w + 2 * pad, H = h + 2 * pad, N = W * H;
+    const mask = new Uint8Array(N);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (alpha[y * w + x] >= threshold) mask[(y + pad) * W + x + pad] = 1;
     const dist = distanceSq(mask, W, H);
     // Campo de distancia en los centros de los píxeles; la línea de corte es la curva de nivel a r del borde
     // del diseño (r + 0,5 px desde el centro del último píxel sólido), trazada con precisión subpíxel.
     const level = r + 0.5;
-    const f = new Float32Array(W * H);
-    for (let i = 0; i < W * H; i++) f[i] = Math.sqrt(dist[i]) - level;
+    const f = new Float32Array(N);
+    if (rc > 0) {
+      // Cierre morfológico: se crece rc más y se vuelve a encoger rc. Las esquinas interiores quedan con
+      // radio rc (la cuchilla gira limpio) y los huecos de menos de 2·rc entre partes se unen.
+      const out = new Uint8Array(N);
+      const L2 = (level + rc) * (level + rc);
+      for (let i = 0; i < N; i++) out[i] = dist[i] > L2 ? 1 : 0;
+      const dOut = distanceSq(out, W, H);
+      for (let i = 0; i < N; i++) f[i] = rc + 0.5 - Math.sqrt(dOut[i]);
+    } else {
+      for (let i = 0; i < N; i++) f[i] = Math.sqrt(dist[i]) - level;
+    }
     let loops = isoLoops(f, W, H).map((l) => l.map(([x, y]) => [x + 0.5, y + 0.5]));
     // Solo los contornos de afuera: se descartan huecos e islas dentro de otros contornos.
     loops = loops.filter((l) => Math.abs(area(l)) > 4);
     loops = loops.filter((l, i) => !loops.some((o, j) => j !== i && Math.abs(area(o)) > Math.abs(area(l)) && inside(l[0], o)));
-    return loops.map((l) => {
+    const polys = loops.map((l) => {
       const p = area(l) < 0 ? l.slice().reverse() : l; // mismo sentido para todos
-      return simplify(p, 0.12).map(([x, y]) => [(x - pad) / pxPerCm, (y - pad) / pxPerCm]);
+      const q = simplify(p, 0.3).map(([x, y]) => [(x - pad) / pxPerCm, (y - pad) / pxPerCm]);
+      q.smooth = true; // se exporta como curvas (ver bezier)
+      return q;
     });
+    if (opts.check) polys.check = cutCheck(f, W, H, pxPerCm, polys, opts.check);
+    return polys;
+  }
+
+  // Revisión del corte: zonas más angostas que minWidthCm (la cuchilla las rompe o no las corta bien)
+  // y recortes más pequeños que minSizeCm. f < 0 es el área que queda dentro de la línea de corte.
+  function cutCheck(f, W, H, pxPerCm, polys, { minWidthCm = 0.2, minSizeCm = 0.3 } = {}) {
+    const N = W * H;
+    const outside = new Uint8Array(N);
+    for (let i = 0; i < N; i++) outside[i] = f[i] >= 0 ? 1 : 0;
+    const dIn = distanceSq(outside, W, H); // distancia al borde, desde adentro
+    const half = (minWidthCm / 2) * pxPerCm;
+    // Apertura: lo que sobrevive a encoger y volver a crecer media anchura mínima tiene el ancho suficiente.
+    const seeds = new Uint8Array(N);
+    for (let i = 0; i < N; i++) seeds[i] = !outside[i] && dIn[i] > half * half ? 1 : 0;
+    const dSeed = distanceSq(seeds, W, H);
+    let thin = 0;
+    const reach = (half + 0.75) * (half + 0.75); // tolerancia de medio píxel
+    for (let i = 0; i < N; i++) if (!outside[i] && dSeed[i] > reach) thin++;
+    const thinCm2 = thin / (pxPerCm * pxPerCm);
+    const tiny = polys.filter((p) => {
+      const xs = p.map((q) => q[0]), ys = p.map((q) => q[1]);
+      return Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) < minSizeCm;
+    }).length;
+    return { thin: thinCm2 > 0.02, thinCm2: Math.round(thinCm2 * 1000) / 1000, tiny };
+  }
+
+  // Curva suave que pasa por los puntos de un contorno cerrado (Hermite con tangentes ponderadas por
+  // la longitud de los tramos, sin bucles ni sobresaltos). Devuelve tramos [c1x, c1y, c2x, c2y, x, y]
+  // que empiezan en p[0]: en PDF son "c" y en SVG "C".
+  function bezier(p) {
+    const n = p.length;
+    if (n < 3) return p.slice(1).map(([x, y]) => [x, y, x, y, x, y]);
+    const d = p.map((a, i) => { const b = p[(i + 1) % n]; return Math.hypot(b[0] - a[0], b[1] - a[1]) || 1e-9; });
+    const t = p.map((_, i) => {
+      const a = p[(i - 1 + n) % n], b = p[(i + 1) % n], s = d[(i - 1 + n) % n] + d[i];
+      return [(b[0] - a[0]) / s, (b[1] - a[1]) / s];
+    });
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const a = p[i], b = p[(i + 1) % n], ta = t[i], tb = t[(i + 1) % n], k = d[i] / 3;
+      out.push([a[0] + ta[0] * k, a[1] + ta[1] * k, b[0] - tb[0] * k, b[1] - tb[1] * k, b[0], b[1]]);
+    }
+    return out;
   }
 
   // Curvas de nivel f = 0 (marching squares con interpolación lineal). f < 0 es adentro.
@@ -240,7 +302,7 @@
     return lines;
   }
 
-  const api = { cutContours, contourPxPerCm, distanceSq, coverage, rectContour, gridLines };
+  const api = { cutContours, contourPxPerCm, distanceSq, coverage, rectContour, gridLines, bezier };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Contour = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

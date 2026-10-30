@@ -44,6 +44,12 @@ npm install
 - En el plan gratis el servicio se "duerme" tras unos minutos sin uso (la primera visita tarda ~1 min) y los pedidos se pierden al reiniciar: descarga cada PNG apenas llegue.
 - Para clientes reales, usa un plan con disco persistente (variable `DATA_DIR` apuntando al disco).
 
+## Línea de corte (vinilo)
+
+- El contorno sigue el borde del diseño a la distancia exacta del borde blanco, con precisión subpíxel. Se exporta como **curvas** en el PDF (spot `CutContour`) y en el SVG, con menos nodos y un corte más fluido.
+- `vinilo.corte.radioMinimoCm` (0,1): radio mínimo de las esquinas interiores, para que la cuchilla gire limpio. Además une huecos de menos de 2 mm entre partes.
+- Revisión del corte: el cliente ve un aviso y el panel marca la pieza si hay partes de menos de `anchoMinimoCm` (2 mm) o recortes de menos de `tamanoMinimoCm` (4 mm, borde incluido), como puntos sueltos. El panel muestra también los **metros de corte** de cada pedido.
+
 ## Datos comerciales y de contacto (config.json)
 
 Se muestran solo los campos que llenes; vacíos no aparecen.

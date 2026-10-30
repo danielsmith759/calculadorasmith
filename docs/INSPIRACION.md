@@ -40,9 +40,9 @@ Otros: [stickerum/contourer](https://github.com/stickerum/contourer), [fracalo/s
   - precio en vivo;
   - montaje protegido.
 - **Nos falta, en orden de valor:**
-  1. **Comprobación de corte** antes de enviar: partes de menos de 3 mm y cuellos de menos de 2 mm, que la cuchilla no puede cortar bien.
-  2. **Radio mínimo de esquina** (≈1 mm) en la línea de corte, para que la cuchilla de semicorte gire limpio.
-  3. **Curvas Bézier** (ajuste de Schneider) en vez de tramos rectos.
+  1. ~~Revisión del corte~~ **hecho**: partes de menos de 2 mm de ancho y recortes de menos de 4 mm (con el borde incluido).
+  2. ~~Radio mínimo de esquina~~ **hecho**: 1 mm en las esquinas interiores, configurable en `vinilo.corte`.
+  3. ~~Curvas Bézier~~ **hecho**: el PDF, el SVG y la vista previa usan curvas, con menos nodos.
   4. **Metros de corte** medidos por pedido, para el panel y para un posible recargo por complejidad.
   5. **«Agrupar por arte»** en DTF, para recortar con tijera más rápido.
   6. **Teselado hexagonal** para stickers redondos en el pliego (más piezas por pliego).

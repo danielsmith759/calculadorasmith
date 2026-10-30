@@ -194,6 +194,7 @@
       "largoMaxCm": 55
     },
     "piezaPequenaCm": 3,
+    "corte": { "radioMinimoCm": 0.1, "anchoMinimoCm": 0.2, "tamanoMinimoCm": 0.4 },
     "rectanguloCobertura": 0.97,
     "marcas": {
       "ladoCm": 0.5,
