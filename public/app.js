@@ -772,6 +772,7 @@ function fixOverflow() {
 function select(i) {
   sel = i;
   const d = cur();
+  showPicks(d);
   $('btnUndo').disabled = !(d && d.undo);
   $('editor').classList.remove('hidden');
   say('');
@@ -1058,14 +1059,25 @@ $('btnReset').addEventListener('click', async () => {
   try {
     d.working = await loadImage(d.file);
     d.cleaned = false;
-    d.pick = d.lastBg = null;
-    $('pickSwatch').classList.add('hidden');
+    d.picks = d.lastBg = null;
+    showPicks(null);
     say('');
     refreshDesign(d);
   } finally { setBusy(false); }
 });
 
 // Clic en la vista previa: elige el color de fondo a quitar.
+// Muestras de los colores de fondo elegidos.
+function showPicks(d) {
+  const box = $('pickSwatch');
+  box.innerHTML = '';
+  for (const c of (d && d.picks) || []) {
+    const sw = document.createElement('span');
+    sw.className = 'swatch'; sw.style.background = `rgb(${c[0]},${c[1]},${c[2]})`;
+    box.appendChild(sw);
+  }
+  box.classList.toggle('hidden', !(d && d.picks && d.picks.length));
+}
 $('preview').addEventListener('click', (ev) => {
   const d = cur();
   const r = $('preview').getBoundingClientRect();
@@ -1073,10 +1085,15 @@ $('preview').addEventListener('click', (ev) => {
   const y = Math.floor(((ev.clientY - r.top) / r.height) * d.design.height);
   const p = d.design.getContext('2d').getImageData(x, y, 1, 1).data;
   if (p[3] < 128) { say('Ese punto ya es transparente. Toca el color de fondo que quieres quitar.'); return; }
-  d.pick = [p[0], p[1], p[2]];
-  $('pickSwatch').style.background = `rgb(${p[0]},${p[1]},${p[2]})`;
-  $('pickSwatch').classList.remove('hidden');
-  say('Color elegido. Ahora pulsa "Quitar color de fondo".', 'ok');
+  // Hasta 3 colores de fondo (papel, rayas, sombra…): cada toque agrega uno.
+  const c = [p[0], p[1], p[2]];
+  d.picks = (d.picks || []).filter((q) => Math.hypot(q[0] - c[0], q[1] - c[1], q[2] - c[2]) > 12);
+  d.picks.push(c);
+  if (d.picks.length > 3) d.picks.shift();
+  showPicks(d);
+  say(d.picks.length === 1
+    ? 'Color elegido. Pulsa «Quitar color de fondo», o toca otro color del fondo para agregarlo (hasta 3).'
+    : `${d.picks.length} colores elegidos. Pulsa «Quitar color de fondo».`, 'ok');
 });
 
 // Quita el color de fondo: desde los bordes (o en toda la imagen), con borde suave y sin halo.
@@ -1089,16 +1106,25 @@ $('btnColor').addEventListener('click', async () => {
   const ctx = work.getContext('2d');
   const img = ctx.getImageData(0, 0, width, height);
   const px = img.data;
-  let bg = d.pick || d.lastBg; // el último color quitado sirve para repetir con "toda la imagen"
-  if (!bg) {
-    // Promedio de las esquinas que no son transparentes.
+  // Colores de fondo: los elegidos tocando la imagen (hasta 3); si no hay, el último quitado o el de las esquinas.
+  let bgs = (d.picks && d.picks.length) ? d.picks : d.lastBg;
+  if (!bgs) {
     const corners = [0, width - 1, (height - 1) * width, height * width - 1].filter((p) => px[p * 4 + 3] > 200);
     if (!corners.length) { say('No se detectó fondo en las esquinas. Toca el color del fondo en la imagen para elegirlo.', 'err'); return; }
-    bg = [0, 1, 2].map((k) => corners.reduce((s, p) => s + px[p * 4 + k], 0) / corners.length);
+    bgs = [[0, 1, 2].map((k) => corners.reduce((s, p) => s + px[p * 4 + k], 0) / corners.length)];
   }
   const tol = parseInt($('tol').value, 10);
   const ramp = tol * 0.6 + 10; // franja de transición suave alrededor del diseño
-  const dist = (p) => Math.hypot(px[p * 4] - bg[0], px[p * 4 + 1] - bg[1], px[p * 4 + 2] - bg[2]);
+  // Distancia al color de fondo más cercano y cuál es.
+  let nearBg = bgs[0];
+  const dist = (p) => {
+    let best = Infinity;
+    for (const b of bgs) {
+      const e = Math.hypot(px[p * 4] - b[0], px[p * 4 + 1] - b[1], px[p * 4 + 2] - b[2]);
+      if (e < best) { best = e; nearBg = b; }
+    }
+    return best;
+  };
   const isBg = (p) => px[p * 4 + 3] > 0 && dist(p) <= tol;
   const removed = new Uint8Array(width * height);
   let count = 0;
@@ -1120,27 +1146,37 @@ $('btnColor').addEventListener('click', async () => {
     }
   }
   for (let p = 0; p < width * height; p++) if (removed[p]) px[p * 4 + 3] = 0;
-  // Borde: los píxeles vecinos al fondo quitado se vuelven semitransparentes y se les retira el color del fondo (evita halo blanco).
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
+  // Borde (franja de 2 píxeles junto al fondo quitado): cada píxel se separa de su mezcla con el fondo
+  // («color a alfa», como en GIMP). Queda la transparencia justa y sin halo del color de fondo.
+  const band = new Uint8Array(width * height);
+  for (let pass = 0; pass < 2; pass++) {
+    const src = pass ? band.slice() : removed;
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
       const p = y * width + x;
-      if (removed[p] || px[p * 4 + 3] === 0) continue;
-      const near = (x > 0 && removed[p - 1]) || (x < width - 1 && removed[p + 1]) || (y > 0 && removed[p - width]) || (y < height - 1 && removed[p + width]);
-      if (!near) continue;
-      const a = Math.min(1, Math.max(0, (dist(p) - tol) / ramp));
-      if (a >= 1) continue;
-      const i = p * 4;
-      if (a < 0.15) { px[i + 3] = 0; continue; }
-      for (let k = 0; k < 3; k++) px[i + k] = Math.max(0, Math.min(255, (px[i + k] - (1 - a) * bg[k]) / a));
-      px[i + 3] = Math.round(px[i + 3] * a);
+      if (removed[p] || band[p]) continue;
+      if ((x > 0 && src[p - 1]) || (x < width - 1 && src[p + 1]) || (y > 0 && src[p - width]) || (y < height - 1 && src[p + width])) band[p] = 1;
     }
+  }
+  for (let p = 0; p < width * height; p++) {
+    const i = p * 4;
+    if (!band[p] || px[i + 3] === 0 || dist(p) > tol + ramp) continue; // solo píxeles que sí son mezcla con el fondo
+    const b = nearBg;
+    let a = 0;
+    for (let k = 0; k < 3; k++) {
+      const c = px[i + k], bk = b[k];
+      a = Math.max(a, c > bk ? (c - bk) / (255 - bk || 1) : c < bk ? (bk - c) / (bk || 1) : 0);
+    }
+    if (a < 0.1) { px[i + 3] = 0; continue; }
+    if (a >= 1) continue;
+    for (let k = 0; k < 3; k++) px[i + k] = Math.max(0, Math.min(255, Math.round(b[k] + (px[i + k] - b[k]) / a)));
+    px[i + 3] = Math.round(px[i + 3] * a);
   }
   if (!count && d.cleaned) { say('El fondo ya está quitado. Si quedan puntos o rayas sueltas, usa «Borrar restos sueltos».', 'ok'); return; }
   if (!count) { say('No se encontró fondo de ese color. Sube la «Sensibilidad» en Ajustes avanzados o toca el fondo para elegir el color.', 'err'); return; }
   saveUndo(d);
   ctx.putImageData(img, 0, 0);
   d.cleaned = true;
-  d.lastBg = bg;
+  d.lastBg = bgs;
   if (!refreshDesign(d)) {
     say('Se borró toda la imagen. Pulsa «Restaurar original» y baja la «Sensibilidad» en Ajustes avanzados.', 'err');
     return;

@@ -68,3 +68,13 @@ Otros: [stickerum/contourer](https://github.com/stickerum/contourer), [fracalo/s
 3. **Botón «Limpiar bordes»** para semitransparencias.
 4. **Acomodo por forma real** en un *Web Worker* (SVGnest) como modo opcional «Aprovechar mejor el pliego».
 5. **Quitar fondo con IA** opcional, solo si se acepta la AGPL o se usa un servicio aparte.
+
+## Quitar fondo por color (sin IA): referencias usadas
+
+Se decidió mantener solo el quitado por color: gratis, instantáneo, exacto con logos y sin enviar imágenes a terceros. Ideas tomadas de proyectos abiertos; el código es propio, escrito a partir de los métodos y sin copiar código GPL:
+
+- **«Color a alfa» de GIMP** ([cmtt/color-to-alpha](https://github.com/cmtt/color-to-alpha), [ImageScript #52](https://github.com/matmen/ImageScript/pull/52), [makeworld/Color-to-Alpha](https://github.com/makeworld/Color-to-Alpha/blob/master/colortoalpha.py)). Cada píxel del borde se separa de su mezcla con el fondo: queda la transparencia justa y sin halo. Se aplica en una franja de 2 px.
+- **Varios colores de fondo** ([bhj/gl-chromakey](https://github.com/bhj/gl-chromakey)): hasta 3 colores elegidos con toques (papel, renglones, margen).
+- **Varita mágica con tolerancia** ([FloodFill2D](https://github.com/blindman67/FloodFill2D), [canvas-magic-wand](https://github.com/ninjabonsai/canvas-magic-wand), [pbs/fuzzy-select](https://github.com/pbs/fuzzy-select)): mismo enfoque que el nuestro (relleno desde los bordes o en toda la imagen).
+- **Descartado:** medir el color en YCbCr ([chroma-key-js](https://github.com/youge-ai/chroma-key-js)). Ayuda con sombras sobre fondo verde, pero con fondo blanco borraría grises claros del logo.
+- **Si algún día se quiere IA local sin pagar por imagen:** [rembg](https://github.com/topics/rembg?l=python) (MIT) con los modelos ISNet o U2Net (Apache 2.0) o BiRefNet (MIT), por ejemplo [remove-background-local](https://github.com/tecnomanu/remove-background-local) u [openbgremove](https://github.com/timsteeno/openbgremove), que corre en el navegador. Son alternativas abiertas; no son ingeniería inversa de remove.bg ni de Canva.
