@@ -8,7 +8,9 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "e2e": "node scripts/e2e.js",
+    "demo": "node scripts/demo-cotizador.js && node scripts/demo-calculadora.js"
   },
   "license": "ISC",
   "dependencies": {
