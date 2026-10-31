@@ -401,15 +401,16 @@ function renderInfo() {
     box.classList.remove('hidden');
   }
   const parts = [k.negocio, k.whatsapp && `WhatsApp +${k.whatsapp}`, k.correo, k.direccion, k.horario].filter(Boolean);
-  $('footer').textContent = parts.filter((x) => !String(x).startsWith('WhatsApp')).join(' · ');
+  $('footer').innerHTML = '';
+  for (const t of parts.filter((x) => !String(x).startsWith('WhatsApp'))) { const sp = document.createElement('span'); sp.textContent = t; $('footer').appendChild(sp); }
   if (k.whatsapp) {
     // WhatsApp como enlace, en el pie y arriba (para dudas u otros productos).
     const a = document.createElement('a');
     a.href = `https://wa.me/${k.whatsapp}?text=${encodeURIComponent('Hola, tengo una pregunta sobre un pedido.')}`;
     a.target = '_blank'; a.rel = 'noopener'; a.textContent = `WhatsApp +${k.whatsapp}`;
-    $('footer').append($('footer').textContent ? ' · ' : '', a);
+    $('footer').append(a);
     const top = document.createElement('p');
-    top.className = 'muted center';
+    top.className = 'muted';
     top.innerHTML = '¿Dudas o buscas otro producto (impresión, tesis, álbumes…)? ';
     const b = a.cloneNode(true); b.textContent = 'Escríbenos por WhatsApp';
     top.appendChild(b);
