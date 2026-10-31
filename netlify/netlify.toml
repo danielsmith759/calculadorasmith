@@ -1,0 +1,4 @@
+# Sitio estático de Netlify que muestra el cotizador (que corre en Render).
+# En Netlify: «Add new site → Deploy manually» y arrastra esta carpeta, o conecta el repo con «Base directory: netlify».
+[build]
+  publish = "."
