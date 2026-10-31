@@ -1,6 +1,7 @@
 // Prueba de punta a punta en navegador real (Chromium): vinilo, DTF, calculadora y panel, con salida corta.
 // Uso: npm run e2e            (perfil de escritorio)
 //      npm run e2e -- --todos (también Android, iPhone con límites de Safari y celular lento)
+//      E2E_URL=https://tu-app.onrender.com E2E_ADMIN=usuario:clave npm run e2e   (contra el sitio publicado; crea 2 pedidos «Prueba E2E»)
 // Requiere Playwright instalado (global o en el proyecto). No guarda nada fuera de una carpeta temporal.
 const fs = require('fs'), os = require('os'), path = require('path');
 const { spawn } = require('child_process');
@@ -15,7 +16,9 @@ const { chromium, devices } = pw;
 const ROOT = path.join(__dirname, '..');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'smith-e2e-'));
 const PORT = 4700 + Math.floor(Math.random() * 200);
-const URL = `http://localhost:${PORT}`;
+const REMOTO = process.env.E2E_URL ? process.env.E2E_URL.replace(/\/+$/, '') : '';
+const URL = REMOTO || `http://localhost:${PORT}`;
+const [ADMIN_USER, ADMIN_PASS] = (process.env.E2E_ADMIN || (REMOTO ? '' : 'equipo:clave12345')).split(':');
 const SAFARI = `(() => { const g = HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.prototype.getContext = function (...a) {
   if (this.width * this.height > 16777216) { window.__big = (window.__big || 0) + 1; return null; } return g.apply(this, a); }; })();`;
 const PERFILES = [
@@ -47,8 +50,9 @@ async function enviar(pg) {
 
 (async () => {
   const img = await imagenes();
-  const srv = spawn('node', ['server.js'], { cwd: ROOT, env: { ...process.env, PORT, DATA_DIR: path.join(TMP, 'data'), ADMIN_USERS: 'equipo:clave12345', WHATSAPP: '573001234567' } });
-  await new Promise((r) => setTimeout(r, 1500));
+  const srv = REMOTO ? { kill() {} } : spawn('node', ['server.js'], { cwd: ROOT, env: { ...process.env, PORT, DATA_DIR: path.join(TMP, 'data'), ADMIN_USERS: 'equipo:clave12345', WHATSAPP: '573001234567' } });
+  await new Promise((r) => setTimeout(r, REMOTO ? 0 : 1500));
+  if (REMOTO) console.log(`Probando ${URL} (si el plan gratis estaba dormido, el primer paso tarda ~1 min)`);
   const b = await chromium.launch();
   let fallas = 0;
   for (const pf of PERFILES) {
@@ -64,7 +68,7 @@ async function enviar(pg) {
       try { await fn(); res.push(`${nombre} ✓`); } catch (e) { fallas++; res.push(`${nombre} ✗ (${e.message.split('\n')[0].slice(0, 90)})`); }
     };
     await paso('vinilo', async () => {
-      await pg.goto(`${URL}/?producto=vinilo`);
+      await pg.goto(`${URL}/?producto=vinilo`, { timeout: 120000 });
       await pg.setInputFiles('#file', [img.logo, img.estrella, img.rect]);
       await pg.waitForFunction(() => document.querySelectorAll('.chip').length === 3, null, { timeout: 30000 });
       await pg.locator('.chip').first().click(); await pg.click('#btnColor'); await pg.waitForTimeout(600);
@@ -89,9 +93,9 @@ async function enviar(pg) {
       const t = await pg.textContent('#ccount');
       if (!/c\/u/.test(t)) throw new Error('sin precio por unidad: ' + t);
     });
-    if (pf === PERFILES[0]) await paso('panel', async () => {
+    if (pf === PERFILES[0] && ADMIN_USER) await paso('panel', async () => {
       await pg.goto(`${URL}/admin.html`);
-      await pg.fill('#user', 'equipo'); await pg.fill('#pass', 'clave12345'); await pg.press('#pass', 'Enter');
+      await pg.fill('#user', ADMIN_USER); await pg.fill('#pass', ADMIN_PASS); await pg.press('#pass', 'Enter');
       await pg.waitForSelector('#rows select');
       const n = await pg.locator('#rows a[href*="download"]').count();
       if (n < 3) throw new Error(`solo ${n} archivos para descargar`);
