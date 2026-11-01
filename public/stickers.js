@@ -10,6 +10,8 @@
 
   // Medidas y precio de referencia de cada producto.
   function area() {
+    const cw = num($('aw').value), cl = num($('ah').value);
+    if (cw > 0 && cl > 0) return { W: cw, L: cl, where: `un material de ${cm(cw)} × ${cm(cl)} cm`, unitLabel: 'material', custom: true };
     if (prod.kind === 'dtf') {
       return { W: config.anchoRolloCm, L: 100, where: `1 metro (${config.anchoRolloCm} × 100 cm)`, unitLabel: 'metro' };
     }
@@ -35,7 +37,7 @@
 
   function count(w, h) {
     const A = area(), p = piece(w, h);
-    const max = prod.kind === 'dtf' ? config.maxPiezas : config.vinilo.maxPiezas;
+    const max = A.custom ? Infinity : prod.kind === 'dtf' ? config.maxPiezas : config.vinilo.maxPiezas;
     return Pricing.fitLayout(A.W, usable(A.L, p.gap), p.a, p.b, p.g).slice(0, max);
   }
 
@@ -93,6 +95,15 @@
       $('cqtyRes').classList.add('hidden');
       quoteText = '';
       draw([], A, p);
+      renderTable(w / h);
+      return;
+    }
+    if (A.custom) {
+      $('ccount').textContent = `${n.toLocaleString('es-CO')} stickers`;
+      $('cunit').textContent = 'Medida de material personalizada: el precio solo se calcula con el pliego o rollo estándar.';
+      $('cqtyRes').classList.add('hidden');
+      quoteText = '';
+      draw(rects, A, p);
       renderTable(w / h);
       return;
     }
@@ -187,7 +198,7 @@
     }).filter((r) => r.n > 0 && Math.min(r.w, r.h) >= 0.5);
     const A = area();
     $('ctable').innerHTML = `<thead><tr><th>Medida</th><th>Caben por ${A.unitLabel}</th><th>Valor c/u</th></tr></thead><tbody>${rows.map((r, i) =>
-      `<tr data-i="${i}"><td>${cm(r.w)} × ${cm(r.h)} cm${prod.kind !== 'dtf' && Pricing.isSmall(config, r.w, r.h) ? '<span class="tag">corte pequeño</span>' : ''}</td><td>${r.n.toLocaleString('es-CO')}${r.n >= (prod.kind === 'dtf' ? config.maxPiezas : config.vinilo.maxPiezas) ? ' (máx.)' : ''}</td><td>${fmt(basePrice(Math.max(r.w, r.h)) / r.n)}</td></tr>`).join('')}</tbody>`;
+      `<tr data-i="${i}"><td>${cm(r.w)} × ${cm(r.h)} cm${prod.kind !== 'dtf' && Pricing.isSmall(config, r.w, r.h) ? '<span class="tag">corte pequeño</span>' : ''}</td><td>${r.n.toLocaleString('es-CO')}${!A.custom && r.n >= (prod.kind === 'dtf' ? config.maxPiezas : config.vinilo.maxPiezas) ? ' (máx.)' : ''}</td><td>${A.custom ? '—' : fmt(basePrice(Math.max(r.w, r.h)) / r.n)}</td></tr>`).join('')}</tbody>`;
     $('ctable').querySelectorAll('tr[data-i]').forEach((tr) => {
       tr.tabIndex = 0; tr.setAttribute('role', 'button');
       tr.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tr.click(); } });
@@ -203,13 +214,12 @@
 
   // Tabla rápida: cuántos stickers cuadrados de cada medida caben en un área cualquiera.
   function renderArea() {
-    const W = num($('aw').value), L = num($('ah').value);
-    if (!(W > 0 && L > 0)) { $('atable').innerHTML = ''; return; }
+    const A = area();
     const rows = SIZES.concat([40, 50]).map((S) => {
       const p = piece(S, S);
-      return { S, n: Pricing.fitCount(W, L - p.gap, p.a, p.b, p.g) };
+      return { S, n: Pricing.fitCount(A.W, usable(A.L, p.gap), p.a, p.b, p.g) };
     }).filter((r) => r.n > 0);
-    $('atable').innerHTML = `<thead><tr><th>Medida</th><th>Caben en ${cm(W)} × ${cm(L)} cm</th></tr></thead><tbody>${rows.map((r) =>
+    $('atable').innerHTML = `<thead><tr><th>Medida</th><th>Caben en ${A.where.replace(/^un(a)? /, '')}</th></tr></thead><tbody>${rows.map((r) =>
       `<tr><td>${cm(r.S)} × ${cm(r.S)} cm</td><td>${r.n.toLocaleString('es-CO')}</td></tr>`).join('')}</tbody>`;
   }
   for (const id of ['aw', 'ah', 'cgap', 'coff', 'cshape']) $(id).addEventListener('input', renderArea);
@@ -219,7 +229,7 @@
   $('cw').addEventListener('input', () => { const w = num($('cw').value); if (keep() && w > 0) $('ch').value = Math.round(w * ratio * 10) / 10; update(); });
   $('ch').addEventListener('input', () => { const h = num($('ch').value); if (keep() && h > 0) $('cw').value = Math.round((h / ratio) * 10) / 10; update(); });
   $('clock').addEventListener('change', () => { ratio = num($('ch').value) / num($('cw').value) || 1; });
-  for (const id of ['cgap', 'coff', 'cqty', 'cshape']) $(id).addEventListener('input', update);
+  for (const id of ['cgap', 'coff', 'cqty', 'cshape', 'aw', 'ah']) $(id).addEventListener('input', update);
   $('ccopy').addEventListener('click', async () => {
     if (!quoteText) return;
     try { await navigator.clipboard.writeText(quoteText); $('ccopied').textContent = 'Copiado. Pégalo en WhatsApp.'; }

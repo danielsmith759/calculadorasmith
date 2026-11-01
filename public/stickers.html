@@ -43,6 +43,13 @@
         <div><label for="ch">Alto (cm)</label><input type="text" id="ch" min="0.5" step="0.1" value="5" inputmode="decimal" autocomplete="off"></div>
       </div>
       <label class="check"><input type="checkbox" id="clock"> Mantener la proporción entre ancho y alto</label>
+      <details class="adv" id="matOpts"><summary>Otra medida de material (opcional)</summary>
+        <div class="row">
+          <div><label for="aw">Ancho del material (cm)</label><input type="text" id="aw" placeholder="Ej. 100" inputmode="decimal" autocomplete="off"></div>
+          <div><label for="ah">Alto del material (cm)</label><input type="text" id="ah" placeholder="Ej. 100" inputmode="decimal" autocomplete="off"></div>
+        </div>
+        <p class="muted">Si lo llenas, se calcula cuántos caben en esa medida. El precio solo se da con el pliego o rollo estándar.</p>
+      </details>
       <label for="cqty">¿Cuántos necesitas? (opcional)</label>
       <input type="number" id="cqty" min="1" step="1" placeholder="Ej. 500" inputmode="numeric">
       <details class="adv" id="advOpts"><summary>Forma, borde y separación</summary>
@@ -75,11 +82,7 @@
   <p class="muted" id="cnote"></p>
 
   <h2>Cuántos caben en tu área</h2>
-  <p class="muted">Escribe el tamaño del área (pliego, rollo o la medida que quieras) y mira de una vez cuántos stickers de cada medida caben, con la separación y el borde de arriba.</p>
-  <div class="row">
-    <div><label for="aw">Ancho del área (cm)</label><input type="text" id="aw" value="100" inputmode="decimal" autocomplete="off"></div>
-    <div><label for="ah">Alto del área (cm)</label><input type="text" id="ah" value="100" inputmode="decimal" autocomplete="off"></div>
-  </div>
+  <p class="muted">Con la medida del material que pusiste arriba, aquí ves de una vez cuántos stickers de cada medida caben.</p>
   <table class="fit" id="atable"></table>
 
   <h2>Otras medidas</h2>
