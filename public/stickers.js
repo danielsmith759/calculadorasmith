@@ -63,6 +63,7 @@
     renderProducts();
     if ($('toQuote')) $('toQuote').href = `index.html?producto=${p.kind === 'dtf' ? 'dtf' : 'vinilo'}`;
     update();
+    if (typeof renderArea === 'function') renderArea();
   }
 
   function valid() {
@@ -200,6 +201,19 @@
     }));
   }
 
+  // Tabla rápida: cuántos stickers cuadrados de cada medida caben en un área cualquiera.
+  function renderArea() {
+    const W = num($('aw').value), L = num($('ah').value);
+    if (!(W > 0 && L > 0)) { $('atable').innerHTML = ''; return; }
+    const rows = SIZES.concat([40, 50]).map((S) => {
+      const p = piece(S, S);
+      return { S, n: Pricing.fitCount(W, L - p.gap, p.a, p.b, p.g) };
+    }).filter((r) => r.n > 0);
+    $('atable').innerHTML = `<thead><tr><th>Medida</th><th>Caben en ${cm(W)} × ${cm(L)} cm</th></tr></thead><tbody>${rows.map((r) =>
+      `<tr><td>${cm(r.S)} × ${cm(r.S)} cm</td><td>${r.n.toLocaleString('es-CO')}</td></tr>`).join('')}</tbody>`;
+  }
+  for (const id of ['aw', 'ah', 'cgap', 'coff', 'cshape']) $(id).addEventListener('input', renderArea);
+
   let ratio = 1;
   const keep = () => $('clock').checked && ratio > 0;
   $('cw').addEventListener('input', () => { const w = num($('cw').value); if (keep() && w > 0) $('ch').value = Math.round(w * ratio * 10) / 10; update(); });
@@ -222,6 +236,7 @@
     ];
     $('coff').min = c.vinilo.margenCorteMinCm * 10; $('coff').max = c.vinilo.margenCorteMaxCm * 10; $('coff').value = c.vinilo.margenCorteCm * 10;
     setProduct(products.find((p) => p.kind === 'vinilo') || products[0]);
+    renderArea();
   };
   if (window.CALC_CONFIG) boot(window.CALC_CONFIG);
   else fetch('/api/config').then((r) => r.json()).then(boot);
